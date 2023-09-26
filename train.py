@@ -77,48 +77,63 @@ def get_stereo_pose(batch_size):
 def train(epoch):
 
     depth_net.model.train()
+    
     progress_bar = tqdm.tqdm(enumerate(dataloader), total=len(dataloader))
-    # for _,data in progress_bar: break
-    # for iter in tqdm.tqdm(range(1000), total = 1000):
+
     for iter, data in progress_bar:
+        optimizer.zero_grad()
         reference_idx = 0
         reference_key = "frame{}".format(reference_idx)
         left_image = data[reference_key]["image"].cuda()
         right_image = data[reference_key]["stereo_pair"].cuda()
         K = data[reference_key]["camera_matrix"].cuda()
-        predicted_disparities, nn_distances, mask = depth_net(
-            left_image, right_image, return_distance=True, masks=True, norm=True
-        )
         pose = get_stereo_pose(left_image.shape[0])
-        total_loss = 0
+        total_loss = torch.zeros(1).cuda()
 
-        ############ koleo reg_loss ############
-        distance = nn_distances[-1]
-        distance_loss = -1.0 * ((1 - distance) ** 2) * torch.log(distance + 1e-6)
-        distance_loss = distance_loss.mean()
-        total_loss += distance_loss
+        if mixed_precision:
+            with torch.autocast(device_type='cuda', dtype=torch.float16):
+                predicted_disparities, nn_distances, mask = depth_net(
+                    left_image, right_image, norm = False,
+                )
+        else:
+            predicted_disparities, nn_distances, mask = depth_net(
+                left_image, right_image, norm = False,
+            )
 
-        # weights = [1/8,1/8,1/4,1/4,1/4]
+        if args.distance_reg:
+            ############ koleo reg_loss ############
+            distance = nn_distances[-1]
+            distance_loss = -1.0 * ((1 - distance) ** 2) * torch.log(distance + 1e-6)
+            distance_loss = distance_loss.mean()
+            total_loss += distance_loss
+
         for idx, disp in enumerate(predicted_disparities):
             disp = disp.unsqueeze(1)
-            # depth = (0.239983 * 245.7601) / (disp + 1e-6)
             depth = 100.0 / (disp + 1e-6)
             warped_right_image = warper(right_image, depth, pose, K)
             photo_loss = loss_fn.simple_photometric_loss(left_image, warped_right_image)
             loss = photo_loss.mean(2, True).mean(3, True).mean()
             total_loss += loss
 
-            ############ Gradient Smoothing ###############
-            if idx < 2:
-                weight = 1 / 8
-            else:
-                weight = 1 / 4
-            smoothloss = get_disparity_smooth_loss(disp, left_image)
-            total_loss += smoothloss * 0.1 * weight
+            if args.disp_smooth:
+                ############ Gradient Smoothing ###############
+                if idx < 2:
+                    weight = 1 / 8
+                else:
+                    weight = 1 / 4
+                smoothloss = get_disparity_smooth_loss(disp, left_image)
+                total_loss += smoothloss * 0.1 * weight
 
-        optimizer.zero_grad()
-        total_loss.backward()
-        optimizer.step()
+        if mixed_precision:
+            scaler.scale(total_loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(depth_net.model.parameters(), 10.0)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            total_loss.backward()
+            torch.nn.utils.clip_grad_norm_(depth_net.model.parameters(), 10.0)
+            optimizer.step()
 
         progress_bar.set_description(
             "epoch: {}/{} training loss: {:.4f}".format(
@@ -128,7 +143,8 @@ def train(epoch):
         if iter % 50 == 0:
             viz(warped_right_image[0:1], disp[:, 0:1])
             viz_error(left_image[0:1], photo_loss[0:1])
-            viz_mask(warped_right_image[0:1], mask[0][0:1])
+            if args.feature_mask:
+                viz_mask(warped_right_image[0:1], mask[0][0:1])
 
         torch.cuda.empty_cache()
 
@@ -150,15 +166,15 @@ if __name__ == "__main__":
     args.use_full_res = False
     args.use_seq = False
     args.use_pose = False
-    args.batch_size = 6
+    args.batch_size = 8
     args.split = "train"
     args.learning_rate = 1e-4
 
     args.dataset = "robotcar" # robotcar, ms2
-
     if args.dataset == "robotcar":
         from datasets.robotcar.dataloader import RobotCarDataset
-        args.data_path = "/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/stereo/"
+        #args.data_path = "/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/stereo/"
+        args.data_path = "/hdd1/madhu/data/robotcar/2014-12-09-13-21-02/stereo/"
         dataset = RobotCarDataset(args)
 
     elif args.dataset == "ms2":
@@ -177,24 +193,34 @@ if __name__ == "__main__":
         sampler=None,
     )
 
-    depth_net = DepthNetwork(args, reg_refine=False)
+
+    args.feature_mask = False
+    args.distance_reg = False
+    args.disp_smooth = False
+    args.reg_refine = False
+    mixed_precision = False
+
+    depth_net = DepthNetwork(args, feature_mask = args.feature_mask, reg_refine=args.reg_refine)
     depth_net.cuda()
     depth_net.train()
 
     warper = ImageWarping(args.batch_size, args.image_height, args.image_width)
     warper.cuda()
 
+    if mixed_precision:
+        scaler = torch.cuda.amp.GradScaler()
     loss_fn = PhotometricLoss()
 
     optimizer = torch.optim.Adam(depth_net.model.parameters(), lr=args.learning_rate)
-    checkpoint_dir = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v2_full"
-    checkpoint_path = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v2_smooth_0.1/depth_net_20.pth"
-    depth_net.load_state_dict(torch.load(checkpoint_path), strict=False)
+    checkpoint_dir = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v1_day"
+    #checkpoint_path = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v2_smooth_0.1/depth_net_20.pth"
+    #depth_net.load_state_dict(torch.load(checkpoint_path), strict=False)
 
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
     # training loop
-    args.num_epochs = 20
+    args.num_epochs = 50
+    train(0)
     for epoch in range(args.num_epochs):
         try:
             train(epoch)

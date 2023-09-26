@@ -1,5 +1,5 @@
 import torch
-from .masked_stereo import UniMatch
+from .depth_decoder import DepthDecoder
 from torchvision import transforms as T
 from .dino_v1 import ViTExtractor as DinoV1ExtractFeatures
 
@@ -7,17 +7,17 @@ IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
-def get_unimatch_config(args):
+def get_detph_decoder_config(args):
     args.task = "stereo"
     args.num_scales = 2
     args.feature_channels = 128
-    args.upsample_factor = 4
+    args.upsample_factor = 4 # 4 for 192x320 and 8 for 384x640
     args.num_head = 1
     args.ffn_dim_expansion = 4
     args.num_transformer_layers = 6
     args.reg_refine = False
     args.attn_type = "self_swin2d_cross_1d"
-    args.attn_splits_list = [1, 8]
+    args.attn_splits_list = [1, 8] 
     args.corr_radius_list = [-1, 4]
     args.prop_radius_list = [-1, 1]
     args.num_reg_refine = 3
@@ -27,23 +27,24 @@ def get_unimatch_config(args):
 def get_dino_config(args):
 
     args.dino_model_name= 'dino_vits8'
+    #args.dino_model_name = 'dino_vits16'
     args.dino_patch_size = 8
-    args.dino_stride = 4
+    args.dino_stride = args.dino_patch_size//2
     args.dino_input_dim = 384
     args.dino_layers = [5,11]
 
     return args
 
 class StereoDepthNet(torch.nn.Module):
-    def __init__(self, args, reg_refine=False):
+    def __init__(self, args, reg_refine=False, feature_mask = False):
         super(StereoDepthNet, self).__init__()
-        args = get_unimatch_config(args)
+        args = get_detph_decoder_config(args)
         args = get_dino_config(args)
         if reg_refine:
             args.reg_refine = reg_refine
             print("=> reg refine is set to: ", args.reg_refine)
 
-        unimatch_model = UniMatch(
+        depth_decoder = DepthDecoder(
             feature_channels=args.feature_channels,
             num_scales=args.num_scales,
             upsample_factor=args.upsample_factor,
@@ -53,9 +54,11 @@ class StereoDepthNet(torch.nn.Module):
             reg_refine=args.reg_refine,
             task=args.task,
             input_dim = args.dino_input_dim,
+            feature_mask = feature_mask
         )
 
-        model = torch.nn.DataParallel(unimatch_model)
+        self.feature_mask = feature_mask
+        model = torch.nn.DataParallel(depth_decoder)
         self.model = model.module
 
         self.args = args
@@ -76,15 +79,20 @@ class StereoDepthNet(torch.nn.Module):
         coarse_height = image_shape[0] // self.args.dino_patch_size
         coarse_width = image_shape[1] // self.args.dino_patch_size
 
+        input_images = torch.cat([image0, image1], dim=0)
+        with torch.autocast(device_type='cuda', dtype=torch.float16):
+       
 
-        with torch.no_grad():
-
-            desc0 = self.dino._extract_features(
-                image0, layers=self.args.dino_layers, facet="token"
-            )
-            desc1 = self.dino._extract_features(
-                image1, layers=self.args.dino_layers, facet="token"
-            )
+            #desc0 = self.dino._extract_features(image0, layers=self.args.dino_layers, facet="token")
+            #desc1 = self.dino._extract_features(image1, layers=self.args.dino_layers, facet="token")
+            with torch.no_grad():
+                desc = self.dino._extract_features(input_images, 
+                                                    layers=self.args.dino_layers, 
+                                                    facet="token")
+        
+            batch_size = desc[0].shape[0] // 2
+            desc0 = [desc[0][:batch_size], desc[1][:batch_size]]
+            desc1 = [desc[0][batch_size:], desc[1][batch_size:]]
 
             coarse_feat0 = desc0[-1][:, 1:, :].permute(0, 2, 1)
             coarse_feat1 = desc1[-1][:, 1:, :].permute(0, 2, 1)
@@ -92,33 +100,33 @@ class StereoDepthNet(torch.nn.Module):
             fine_feat0 = desc0[0][:, 1:, :].permute(0, 2, 1)
             fine_feat1 = desc1[0][:, 1:, :].permute(0, 2, 1)
 
-        batch_size = desc0[0].shape[0]
-        coarse_feat0 = coarse_feat0.view(
-            batch_size, -1, coarse_height, coarse_width
-        )
-        coarse_feat1 = coarse_feat1.contiguous().view(
-            batch_size, -1, coarse_height, coarse_width
-        )
+            coarse_feat0 = coarse_feat0.contiguous().view(
+                batch_size, -1, coarse_height, coarse_width
+            )
+            coarse_feat1 = coarse_feat1.contiguous().view(
+                batch_size, -1, coarse_height, coarse_width
+            )
 
-        fine_feat0 = fine_feat0.contiguous().view(
-            batch_size, -1, fine_height, fine_width
-        )
-        fine_feat1 = fine_feat1.contiguous().view(
-            batch_size, -1, fine_height, fine_width
-        )
+            fine_feat0 = fine_feat0.contiguous().view(
+                batch_size, -1, fine_height, fine_width
+            )
+            fine_feat1 = fine_feat1.contiguous().view(
+                batch_size, -1, fine_height, fine_width
+            )
 
-        fine_feat0 = torch.nn.functional.pad(fine_feat0, (0, 1, 0, 1))
-        fine_feat1 = torch.nn.functional.pad(fine_feat1, (0, 1, 0, 1))
-
-        self.feat = (
-            [coarse_feat0, fine_feat0],
-            [coarse_feat1, fine_feat1],
-        ) 
-
-        return [coarse_feat0, fine_feat0], [coarse_feat1, fine_feat1]
+            fine_feat0 = torch.nn.functional.pad(fine_feat0, (0, 1, 0, 1))
+            fine_feat1 = torch.nn.functional.pad(fine_feat1, (0, 1, 0, 1))
 
 
-    def forward(self, left, right, return_distance=False, masks=False, norm=False):
+            self.feat = (
+                [coarse_feat0, fine_feat0],
+                [coarse_feat1, fine_feat1],
+            ) 
+
+            return [coarse_feat0, fine_feat0], [coarse_feat1, fine_feat1]
+
+
+    def forward(self, left, right,norm=False):
 
         if norm:
             left = self.image_net_normalizer(left)
@@ -135,11 +143,10 @@ class StereoDepthNet(torch.nn.Module):
         )
 
         pred_disp = outputs["flow_preds"]
-        if return_distance:
-            distance = outputs["nn_distance"]
-            if masks:
-                masks = outputs["bad_pixel_mask"]
-                return pred_disp, distance, masks
-            return pred_disp, distance, None
 
-        return pred_disp, None, None
+        if self.feature_mask:
+            distance = outputs["nn_distance"]
+            masks = outputs["bad_pixel_mask"]
+            return pred_disp, distance, masks
+        else:
+            return pred_disp, None, None

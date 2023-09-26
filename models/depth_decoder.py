@@ -41,7 +41,7 @@ def histogram_test(features, post_fix = 'full'):
     plt.savefig("distance_hist_{}.png".format(post_fix))
 
 
-class UniMatch(nn.Module):
+class DepthDecoder(nn.Module):
     def __init__(self,
                  num_scales=1,
                  feature_channels=128,
@@ -52,14 +52,19 @@ class UniMatch(nn.Module):
                  reg_refine=False,  # optional local regression refinement
                  task='flow',
                  input_dim = 384,
-                 output_dim = 128
+                 output_dim = 128,
+                 feature_mask = False
                  ):
-        super(UniMatch, self).__init__()
+        super(DepthDecoder, self).__init__()
 
         self.feature_channels = feature_channels
         self.num_scales = num_scales
         self.upsample_factor = upsample_factor
         self.reg_refine = reg_refine
+
+        if feature_mask:
+            print('---> Using feature mask')
+        self.feature_mask = feature_mask
 
         # CNN
         self.backbone = None
@@ -174,15 +179,14 @@ class UniMatch(nn.Module):
         masks = []
         for scale_idx in range(self.num_scales):
             feature0, feature1 = feature0_list[scale_idx].detach(), feature1_list[scale_idx].detach()
-            #if scale_idx == 0:
-            #    histogram_test(feature0,post_fix = 'before')
+
             feature0 = self.projector(feature0)
             feature1 = self.projector(feature1)
-            #if scale_idx == 0:
-            #    histogram_test(feature0.detach(),post_fix = 'after')        
-            bad_pixel_mask, nearest_neighbour_distances = self.get_mask(feature0,thr[scale_idx])
-            distances.append(nearest_neighbour_distances)
-            masks.append(bad_pixel_mask)
+     
+            if self.feature_mask:
+                bad_pixel_mask, nearest_neighbour_distances = self.get_mask(feature0,thr[scale_idx])
+                distances.append(nearest_neighbour_distances)
+                masks.append(bad_pixel_mask)
 
             #bad_pixel_mask = bad_pixel_mask.detach()
 
@@ -233,7 +237,8 @@ class UniMatch(nn.Module):
             else:
                 raise NotImplementedError
 
-            flow_pred = flow_pred * bad_pixel_mask
+            if self.feature_mask:
+                flow_pred = flow_pred * bad_pixel_mask
 
 
             # flow or residual flow
