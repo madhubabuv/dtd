@@ -3,7 +3,7 @@ import tqdm
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from models.depth_model import StereoDepthNet as DepthNetwork
+from models.test_model import StereoDepthNet as DepthNetwork
 from models.image_warping import ImageWarping
 from losses.photometric_loss import PhotometricLoss
 from losses.regularization_loss import get_disparity_smooth_loss
@@ -108,8 +108,9 @@ def train(epoch):
             total_loss += distance_loss
 
         for idx, disp in enumerate(predicted_disparities):
+
             disp = disp.unsqueeze(1)
-            depth = 100.0 / (disp + 1e-6)
+            depth = 200.0 / (disp + 1e-6)
             warped_right_image = warper(right_image, depth, pose, K)
             photo_loss = loss_fn.simple_photometric_loss(left_image, warped_right_image)
             loss = photo_loss.mean(2, True).mean(3, True).mean()
@@ -153,8 +154,8 @@ if __name__ == "__main__":
 
     args = argparse.ArgumentParser()
     # args = get_test_args()
-    args.image_height = 192
-    args.image_width = 320
+    args.image_height = 392
+    args.image_width = 644
     args.working_resolution = (args.image_width, args.image_height)
     args.use_gt_poses = False
     args.use_gray_scale = False
@@ -166,15 +167,15 @@ if __name__ == "__main__":
     args.use_full_res = False
     args.use_seq = False
     args.use_pose = False
-    args.batch_size = 8
+    args.batch_size = 4
     args.split = "train"
     args.learning_rate = 1e-4
 
     args.dataset = "robotcar" # robotcar, ms2
     if args.dataset == "robotcar":
         from datasets.robotcar.dataloader import RobotCarDataset
-        #args.data_path = "/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/stereo/"
-        args.data_path = "/hdd1/madhu/data/robotcar/2014-12-09-13-21-02/stereo/"
+        args.data_path = "/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/stereo/"
+        #args.data_path = "/hdd1/madhu/data/robotcar/2014-12-09-13-21-02/stereo/"
         dataset = RobotCarDataset(args)
 
     elif args.dataset == "ms2":
@@ -212,9 +213,9 @@ if __name__ == "__main__":
     loss_fn = PhotometricLoss()
 
     optimizer = torch.optim.Adam(depth_net.model.parameters(), lr=args.learning_rate)
-    checkpoint_dir = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v1_day"
-    #checkpoint_path = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v2_smooth_0.1/depth_net_20.pth"
-    #depth_net.load_state_dict(torch.load(checkpoint_path), strict=False)
+    checkpoint_dir = "/mnt/nas/madhu/data/checkpoints/chapter_3/dinov2_unimatch_v1_night"
+    checkpoint_path = "/mnt/nas/madhu/data/checkpoints/chapter_3/dinov2_unimatch_v1_day/depth_net_15.pth"
+    depth_net.load_state_dict(torch.load(checkpoint_path), strict=False)
 
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
