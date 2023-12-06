@@ -7,6 +7,7 @@ from models.depth_model import StereoDepthNet as DepthNetwork
 from models.image_warping import ImageWarping
 from losses.photometric_loss import PhotometricLoss
 from losses.regularization_loss import get_disparity_smooth_loss
+from unimatch.unimatch.geometry import flow_warp
 import argparse
 
 
@@ -50,7 +51,7 @@ def viz_mask(left_image, disp):
     plt.close()
 
 
-def viz_error(image, error):
+def viz_error(image, error, name=''):
     image = image.squeeze().detach().permute(1, 2, 0).cpu().numpy()
     error = error.squeeze().detach().cpu().numpy()
     fig, ax = plt.subplots(1, 2, figsize=(10, 4))
@@ -58,7 +59,7 @@ def viz_error(image, error):
     ax[1].imshow(error.squeeze())
     ax[0].axis("off")
     plt.tight_layout()
-    plt.savefig("photo_error.png")
+    plt.savefig(name+"photo_error.png")
     plt.clf()
     plt.close()
 
@@ -78,17 +79,21 @@ def train(epoch):
 
     depth_net.model.train()
     progress_bar = tqdm.tqdm(enumerate(dataloader), total=len(dataloader))
-    # for _,data in progress_bar: break
-    # for iter in tqdm.tqdm(range(1000), total = 1000):
-    for iter, data in progress_bar:
+    for _,data in progress_bar: break
+    for iter in tqdm.tqdm(range(1000), total = 1000):
+    #for iter, data in progress_bar:
         reference_idx = 0
         reference_key = "frame{}".format(reference_idx)
         left_image = data[reference_key]["image"].cuda()
         right_image = data[reference_key]["stereo_pair"].cuda()
         K = data[reference_key]["camera_matrix"].cuda()
-        predicted_disparities, nn_distances, mask = depth_net(
-            left_image, right_image, return_distance=True, masks=True, norm=True
-        )
+        # predicted_disparities, nn_distances, mask = depth_net(
+        #     left_image, right_image, return_distance=True, masks=True, norm=True
+        # )
+        outputs = depth_net(left_image, right_image, return_dict=True)
+        predicted_disparities = outputs["flow_preds"]
+        nn_distances = outputs["nn_distance"]
+        mask = outputs["bad_pixel_mask"]
         pose = get_stereo_pose(left_image.shape[0])
         total_loss = 0
 
@@ -101,14 +106,25 @@ def train(epoch):
         # weights = [1/8,1/8,1/4,1/4,1/4]
         for idx, disp in enumerate(predicted_disparities):
             disp = disp.unsqueeze(1)
-            # depth = (0.239983 * 245.7601) / (disp + 1e-6)
-            depth = 100.0 / (disp + 1e-6)
+            depth = (0.239983 * 100.) / (disp + 1e-6)
+            #depth = 100.0 / (disp + 1e-6)
+            #disp_pad = torch.cat([disp, torch.zeros_like(disp)], dim=1)
+            #warped_right_image = flow_warp(right_image, -1.*disp_pad)
+            #
             warped_right_image = warper(right_image, depth, pose, K)
             photo_loss = loss_fn.simple_photometric_loss(left_image, warped_right_image)
             loss = photo_loss.mean(2, True).mean(3, True).mean()
             total_loss += loss
 
-            ############ Gradient Smoothing ###############
+            # #lets focus on heavy photo regions
+            #focal_loss = -1.*((photo_loss.detach())**0.5)*torch.log( 1 - photo_loss)
+            #total_loss += focal_loss.mean()
+            #total_loss = -1 * photo_loss* torch.log(1 - photo_loss).mean()
+            # loss_2 = focal_loss.mean(2, True).mean(3, True).mean()
+            # total_loss += loss_2
+
+
+            # ############ Gradient Smoothing ###############
             if idx < 2:
                 weight = 1 / 8
             else:
@@ -122,15 +138,16 @@ def train(epoch):
 
         progress_bar.set_description(
             "epoch: {}/{} training loss: {:.4f}".format(
-                epoch, args.num_epochs, loss.item()
+                epoch, args.num_epochs, total_loss.item()
             )
         )
         if iter % 50 == 0:
             viz(warped_right_image[0:1], disp[:, 0:1])
             viz_error(left_image[0:1], photo_loss[0:1])
             viz_mask(warped_right_image[0:1], mask[0][0:1])
+            #viz_error(left_image[0:1], focal_loss[0:1],name = 'focal')
 
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
@@ -150,7 +167,7 @@ if __name__ == "__main__":
     args.use_full_res = False
     args.use_seq = False
     args.use_pose = False
-    args.batch_size = 6
+    args.batch_size = 1
     args.split = "train"
     args.learning_rate = 1e-4
 
@@ -187,23 +204,24 @@ if __name__ == "__main__":
     loss_fn = PhotometricLoss()
 
     optimizer = torch.optim.Adam(depth_net.model.parameters(), lr=args.learning_rate)
-    checkpoint_dir = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v2_full"
-    checkpoint_path = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v2_smooth_0.1/depth_net_20.pth"
+    checkpoint_dir = "/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/focal_photometric_loss"
+    checkpoint_path = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v1/depth_net_10.pth"
     depth_net.load_state_dict(torch.load(checkpoint_path), strict=False)
 
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
     # training loop
     args.num_epochs = 20
+    train(0)
     for epoch in range(args.num_epochs):
         try:
             train(epoch)
-            if epoch % 5 == 0:
+            #if epoch % 5 == 0:
 
-                torch.save(
-                    depth_net.state_dict(),
-                    os.path.join(checkpoint_dir, "depth_net_{}.pth".format(epoch)),
-                )
+            torch.save(
+                depth_net.state_dict(),
+                os.path.join(checkpoint_dir, "depth_net_{}.pth".format(epoch)),
+            )
 
         except Exception as e:
             print(e)

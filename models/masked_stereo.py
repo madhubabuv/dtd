@@ -41,6 +41,40 @@ def histogram_test(features, post_fix = 'full'):
     plt.savefig("distance_hist_{}.png".format(post_fix))
 
 
+
+class AdaIN(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def mu(self, x):
+        """ Takes a (n,c,h,w) tensor as input and returns the average across
+        it's spatial dimensions as (h,w) tensor [See eq. 5 of paper]"""
+        return torch.sum(x,(2,3))/(x.shape[2]*x.shape[3])
+
+    def sigma(self, x):
+        """ Takes a (n,c,h,w) tensor as input and returns the standard deviation
+        across it's spatial dimensions as (h,w) tensor [See eq. 6 of paper] Note
+        the permutations are required for broadcasting"""
+        return torch.sqrt((torch.sum((x.permute([2,3,0,1])-self.mu(x)).permute([2,3,0,1])**2,(2,3))+0.000000023)/(x.shape[2]*x.shape[3]))
+
+    def forward(self, feat):
+        """ Takes a content embeding x and a style embeding y and changes
+        transforms the mean and standard deviation of the content embedding to
+        that of the style. [See eq. 8 of paper] Note the permutations are
+        required for broadcasting"""
+
+        batch_size = feat.shape[0]//2
+        y = feat[:batch_size] # night
+        x = feat[batch_size:] # day 
+
+        #we first remove the day style and add night style 
+        # so that idea is that we want to remove the day style and add the night style and estimate disparity
+        # and calculate photometric losses on day-time images with night style
+
+        trans_x =  (self.sigma(y)*((x.permute([2,3,0,1])-self.mu(x))/self.sigma(x)) + self.mu(y)).permute([2,3,0,1])
+
+        return torch.cat([y, trans_x], dim = 0)
+
 class UniMatch(nn.Module):
     def __init__(self,
                  num_scales=1,
@@ -63,6 +97,25 @@ class UniMatch(nn.Module):
 
         # CNN
         self.backbone = None
+        self.projector_1 = nn.Sequential(nn.Conv2d(input_dim, 256, 1),
+                               nn.ReLU(inplace=True),
+                               nn.Conv2d(256, output_dim, 1))
+
+        self.projector_2 = nn.Sequential(nn.Conv2d(input_dim, 256, 1),
+                              nn.ReLU(inplace=True),
+                              nn.Conv2d(256, output_dim, 1))
+
+        self.projector = [self.projector_1, self.projector_2]
+
+        # self.projector = nn.Sequential(nn.Conv2d(input_dim, input_dim, 1, bias=False),
+        #                                 nn.BatchNorm2d(input_dim),
+        #                                 nn.ReLU(inplace=True), # first layer
+        #                                 nn.Conv2d(input_dim, input_dim,1,bias=False),
+        #                                 nn.BatchNorm2d(input_dim),
+        #                                 nn.ReLU(inplace=True), # second layer
+        #                                 nn.Conv2d(input_dim, output_dim,1, bias=False),
+        #                                 nn.BatchNorm2d(output_dim, affine=False)) # output layer
+
 
         # Transformer
         self.transformer = FeatureTransformer(num_layers=num_transformer_layers,
@@ -70,13 +123,21 @@ class UniMatch(nn.Module):
                                               nhead=num_head,
                                               ffn_dim_expansion=ffn_dim_expansion,
                                               )
+        self.d_n_transformer = FeatureTransformer(num_layers=num_transformer_layers,
+                                              d_model=feature_channels,
+                                              nhead=num_head,
+                                              ffn_dim_expansion=ffn_dim_expansion,
+                                              )
+
+        self.predictor = nn.Sequential(nn.Conv2d(output_dim, output_dim, 1),
+                        nn.BatchNorm2d(output_dim),
+                        nn.ReLU(inplace=True),
+                        nn.Conv2d(output_dim, output_dim, 1))
+
 
         # propagation with self-attn
         self.feature_flow_attn = SelfAttnPropagation(in_channels=feature_channels)
 
-        self.projector = nn.Sequential(nn.Conv2d(input_dim, 256, 1),
-                                        nn.ReLU(inplace=True),
-                                        nn.Conv2d(256, output_dim, 1))
 
         if not self.reg_refine:
             # convex upsampling simiar to RAFT
@@ -96,6 +157,9 @@ class UniMatch(nn.Module):
                                            )
 
         self.threshold = torch.nn.Parameter(torch.tensor(0.2), requires_grad=False)
+
+        if self.train:
+            self.ada_in = AdaIN()
 
     
     def extract_feature(self, img0, img1):
@@ -163,7 +227,9 @@ class UniMatch(nn.Module):
         with torch.no_grad():
             # list of features, resolution low to high
             feature0_list, feature1_list = self.extract_feature(img0, img1)  # list of features
-            
+            #print(self.train)
+            # if self.train:
+
 
         flow = None
 
@@ -172,20 +238,39 @@ class UniMatch(nn.Module):
         thr = [0.2,0.2] # change this to [0.2,0.2] in case of dino_v1 and the resolution is 192x320
         distances = []
         masks = []
+        all_features = []
+        before_features = []
+        after_features = []
         for scale_idx in range(self.num_scales):
             feature0, feature1 = feature0_list[scale_idx].detach(), feature1_list[scale_idx].detach()
             #if scale_idx == 0:
             #    histogram_test(feature0,post_fix = 'before')
-            feature0 = self.projector(feature0)
-            feature1 = self.projector(feature1)
+            feature0 = self.projector[scale_idx](feature0)
+            feature1 = self.projector[scale_idx](feature1)
+            #all_features.append(feature0)
+
             #if scale_idx == 0:
             #    histogram_test(feature0.detach(),post_fix = 'after')        
-            bad_pixel_mask, nearest_neighbour_distances = self.get_mask(feature0,thr[scale_idx])
-            distances.append(nearest_neighbour_distances)
-            masks.append(bad_pixel_mask)
+            #bad_pixel_mask, nearest_neighbour_distances = self.get_mask(feature0,thr[scale_idx])
+            #distances.append(nearest_neighbour_distances)
+            #masks.append(bad_pixel_mask)
+            
+            # if not scale_idx:
+            #     flat_features = feature0.flatten(2).contiguous()  # [B, C, H*W]
+                
+            #     #flat_mask = bad_pixel_mask.flatten(2).contiguous()
+            #     # masked_features = flat_features * flat_mask
+            #     # feature_sum = masked_features.sum(2,True) 
+            #     # mask_sum = flat_mask.sum(2,True)
+            #     # feature_mean = feature_sum / mask_sum
+            #     # flat_features = feature_mean.unsqueeze(2)
+
+            #     flat_features = flat_features.mean(dim=2, keepdim=True).unsqueeze(2)  # [B, C, 1, 1]
+            #     before_features.append(flat_features.squeeze())
+            #     pred_feature0 = self.predictor(flat_features)
+            #     after_features.append(pred_feature0.squeeze())
 
             #bad_pixel_mask = bad_pixel_mask.detach()
-
             upsample_factor = self.upsample_factor * (2 ** (self.num_scales - 1 - scale_idx))
 
             if scale_idx > 0:
@@ -214,16 +299,22 @@ class UniMatch(nn.Module):
 
             # add position to features
             feature0, feature1 = feature_add_position(feature0, feature1, attn_splits, self.feature_channels)
+        
+
+            # lets mix day-night features
+
+        
 
 
 
-            # here they do global attention, can we do local attention?
-            
-            # Transformer
+
+            # lets mix left right featurs
             feature0, feature1 = self.transformer(feature0, feature1,
                                                   attn_type=attn_type,
                                                   attn_num_splits=attn_splits,
                                                   )
+
+
 
                       
             if corr_radius == -1:  # global matching
@@ -233,7 +324,7 @@ class UniMatch(nn.Module):
             else:
                 raise NotImplementedError
 
-            flow_pred = flow_pred * bad_pixel_mask
+            #flow_pred = flow_pred * bad_pixel_mask
 
 
             # flow or residual flow
@@ -253,7 +344,7 @@ class UniMatch(nn.Module):
                                           local_window_attn=prop_radius > 0,
                                           local_window_radius=prop_radius,
                                           )
-            # bilinear exclude the last one and for the last one use RAFT- style upsampling
+            # bilinear exclude the last one and for the last one use RAFT - style upsampling
             if self.training and scale_idx < self.num_scales - 1:
                 flow_up = self.upsample_flow(flow, feature0, bilinear=True,
                                              upsample_factor=upsample_factor,
@@ -276,5 +367,8 @@ class UniMatch(nn.Module):
         results_dict.update({'flow_preds': flow_preds})
         results_dict.update({'nn_distance': distances})
         results_dict.update({'bad_pixel_mask': masks})
+        results_dict.update({'features': all_features})
+        results_dict.update({'before_features': before_features})
+        results_dict.update({'after_features': after_features})
 
         return results_dict

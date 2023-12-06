@@ -86,7 +86,7 @@ class RobotCarDataset(torch.utils.data.Dataset):
             # if self.args.use_stereo:
             #     timestamps_path = os.path.join(data_path, "files/train_stereo.txt")
             # else:
-            timestamps_path = os.path.join(data_path, "../files/2014-12-16-18-44-24_train_1m.txt")
+            timestamps_path = os.path.join(data_path, "../files/train_1m.txt")
         elif self.args.split == "val":
             print("Validation!!!")
             timestamps_path = os.path.join(data_path, "files/val.txt")

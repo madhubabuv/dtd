@@ -78,7 +78,7 @@ class StereoDepthNet(torch.nn.Module):
 
 
         with torch.no_grad():
-
+        #with torch.autocast(device_type='cuda', dtype=torch.float16):
             desc0 = self.dino._extract_features(
                 image0, layers=self.args.dino_layers, facet="token"
             )
@@ -92,33 +92,33 @@ class StereoDepthNet(torch.nn.Module):
             fine_feat0 = desc0[0][:, 1:, :].permute(0, 2, 1)
             fine_feat1 = desc1[0][:, 1:, :].permute(0, 2, 1)
 
-        batch_size = desc0[0].shape[0]
-        coarse_feat0 = coarse_feat0.view(
-            batch_size, -1, coarse_height, coarse_width
-        )
-        coarse_feat1 = coarse_feat1.contiguous().view(
-            batch_size, -1, coarse_height, coarse_width
-        )
+            batch_size = desc0[0].shape[0]
+            coarse_feat0 = coarse_feat0.view(
+                batch_size, -1, coarse_height, coarse_width
+            )
+            coarse_feat1 = coarse_feat1.contiguous().view(
+                batch_size, -1, coarse_height, coarse_width
+            )
 
-        fine_feat0 = fine_feat0.contiguous().view(
-            batch_size, -1, fine_height, fine_width
-        )
-        fine_feat1 = fine_feat1.contiguous().view(
-            batch_size, -1, fine_height, fine_width
-        )
+            fine_feat0 = fine_feat0.contiguous().view(
+                batch_size, -1, fine_height, fine_width
+            )
+            fine_feat1 = fine_feat1.contiguous().view(
+                batch_size, -1, fine_height, fine_width
+            )
 
-        fine_feat0 = torch.nn.functional.pad(fine_feat0, (0, 1, 0, 1))
-        fine_feat1 = torch.nn.functional.pad(fine_feat1, (0, 1, 0, 1))
+            fine_feat0 = torch.nn.functional.pad(fine_feat0, (0, 1, 0, 1))
+            fine_feat1 = torch.nn.functional.pad(fine_feat1, (0, 1, 0, 1))
 
-        self.feat = (
-            [coarse_feat0, fine_feat0],
-            [coarse_feat1, fine_feat1],
-        ) 
+            self.feat = (
+                [coarse_feat0, fine_feat0],
+                [coarse_feat1, fine_feat1],
+            ) 
 
         return [coarse_feat0, fine_feat0], [coarse_feat1, fine_feat1]
 
 
-    def forward(self, left, right, return_distance=False, masks=False, norm=False):
+    def forward(self, left, right, return_distance=False, masks=False, norm=False, return_dict = False):
 
         if norm:
             left = self.image_net_normalizer(left)
@@ -134,6 +134,8 @@ class StereoDepthNet(torch.nn.Module):
             task="stereo",
         )
 
+        if return_dict:
+            return outputs
         pred_disp = outputs["flow_preds"]
         if return_distance:
             distance = outputs["nn_distance"]

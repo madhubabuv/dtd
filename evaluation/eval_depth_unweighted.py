@@ -9,10 +9,11 @@ import pdb
 cv2.setNumThreads(0)  
 
 #KITTI_SCALE_FACTOR = 5.4
-#ROBOTCAR_SCALE_FACTOR = 0.239983 * 983.044006 
-MS2_SCALE_FACTOR = (0.2991842 * 764.51385)
+#ROBOTCAR_SCALE_FACTOR = 0.239983 * 983.044006
+#MS2_SCALE_FACTOR = (0.2991842 * 764.51385)
 #MS2_SCALE_FACTOR = (0.2991842 * 100)
-#ROBOTCAR_SCALE_FACTOR = 0.239983*100.
+#ROBOTCAR_SCALE_FACTOR = 0.239983*100.* 0.2399
+ROBOTCAR_SCALE_FACTOR = 0.239983*983.044006 * 0.25
 #MS2_SCALE_FACTOR = 0.2991842 * 100.
 
 
@@ -59,17 +60,13 @@ def evaluate(pred_disps, gt_depths):
     errors = []
     all_ratios = []
     for i in tqdm.tqdm(range(pred_disps.shape[0]),total = pred_disps.shape[0]):
-
-
-        #[0.20610779 2.50589489 9.03905365 0.37457745 0.59337944 0.79590947 0.90455592]
-
         gt_depth = gt_depths[i]
         gt_height, gt_width = gt_depth.shape[:2]
 
         pred_disp = pred_disps[i]
     
         pred_disp = cv2.resize(pred_disp, (gt_width, gt_height))
-        pred_depth = MS2_SCALE_FACTOR / (pred_disp + 1e-6)
+        pred_depth = ROBOTCAR_SCALE_FACTOR/ (pred_disp + 1e-6)
 
         if eval_split == "eigen":
             mask = np.logical_and(gt_depth > MIN_DEPTH, gt_depth < MAX_DEPTH)
@@ -89,7 +86,7 @@ def evaluate(pred_disps, gt_depths):
 
         # ratio = np.median(gt_depth[mask]) / np.median(pred_depth[mask])
         # pred_depth *= ratio
-        #all_ratios.append(ratio)
+        # all_ratios.append(ratio)
 
         pred_depth = pred_depth[mask]
         gt_depth = gt_depth[mask]
@@ -98,32 +95,10 @@ def evaluate(pred_disps, gt_depths):
         pred_depth[pred_depth > MAX_DEPTH] = MAX_DEPTH
         errors.append(compute_errors(gt_depth, pred_depth))
 
+
     mean_errors = np.array(errors).mean(0)
+    #breakpoint()
     return mean_errors
-def evaluate_generic(pred_depth, gt_depth):
-
-    MIN_DEPTH = 1e-3
-    MAX_DEPTH = 60
-
-    #gt_height, gt_width = gt_depth.shape[:2]
-
-    mask = np.logical_and(gt_depth > MIN_DEPTH, gt_depth < MAX_DEPTH)
-
-    #crop = np.array([0.40810811 * gt_height, 0.99189189 * gt_height,
-    #                    0.03594771 * gt_width,  0.96405229 * gt_width]).astype(np.int32)
-    #crop_mask = np.zeros(mask.shape)
-    #crop_mask[crop[0]:crop[1], crop[2]:crop[3]] = 1
-    #mask = np.logical_and(mask, crop_mask)
-
-    pred_depth = pred_depth[mask]
-    gt_depth = gt_depth[mask]
-
-    pred_depth[pred_depth < MIN_DEPTH] = MIN_DEPTH
-    pred_depth[pred_depth > MAX_DEPTH] = MAX_DEPTH
-    
-    errors = compute_errors(gt_depth, pred_depth)
-
-    return errors
 
 
 
@@ -152,7 +127,7 @@ if __name__ == "__main__":
 
     #gt_depths = np.load(args.gt_depths_path, fix_imports=True, encoding='latin1',allow_pickle=True)["data"]
 
-
+    
     results  = evaluate(pred_disps, gt_depths)
 
     print(results)
