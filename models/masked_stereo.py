@@ -97,25 +97,9 @@ class UniMatch(nn.Module):
 
         # CNN
         self.backbone = None
-        self.projector_1 = nn.Sequential(nn.Conv2d(input_dim, 256, 1),
+        self.projector = nn.Sequential(nn.Conv2d(input_dim, 256, 1),
                                nn.ReLU(inplace=True),
                                nn.Conv2d(256, output_dim, 1))
-
-        self.projector_2 = nn.Sequential(nn.Conv2d(input_dim, 256, 1),
-                              nn.ReLU(inplace=True),
-                              nn.Conv2d(256, output_dim, 1))
-
-        self.projector = [self.projector_1, self.projector_2]
-
-        # self.projector = nn.Sequential(nn.Conv2d(input_dim, input_dim, 1, bias=False),
-        #                                 nn.BatchNorm2d(input_dim),
-        #                                 nn.ReLU(inplace=True), # first layer
-        #                                 nn.Conv2d(input_dim, input_dim,1,bias=False),
-        #                                 nn.BatchNorm2d(input_dim),
-        #                                 nn.ReLU(inplace=True), # second layer
-        #                                 nn.Conv2d(input_dim, output_dim,1, bias=False),
-        #                                 nn.BatchNorm2d(output_dim, affine=False)) # output layer
-
 
         # Transformer
         self.transformer = FeatureTransformer(num_layers=num_transformer_layers,
@@ -129,10 +113,10 @@ class UniMatch(nn.Module):
                                               ffn_dim_expansion=ffn_dim_expansion,
                                               )
 
-        self.predictor = nn.Sequential(nn.Conv2d(output_dim, output_dim, 1),
-                        nn.BatchNorm2d(output_dim),
-                        nn.ReLU(inplace=True),
-                        nn.Conv2d(output_dim, output_dim, 1))
+        # self.predictor = nn.Sequential(nn.Conv2d(output_dim, output_dim, 1),
+        #                 nn.BatchNorm2d(output_dim),
+        #                 nn.ReLU(inplace=True),
+        #                 nn.Conv2d(output_dim, output_dim, 1))
 
 
         # propagation with self-attn
@@ -243,34 +227,15 @@ class UniMatch(nn.Module):
         after_features = []
         for scale_idx in range(self.num_scales):
             feature0, feature1 = feature0_list[scale_idx].detach(), feature1_list[scale_idx].detach()
-            #if scale_idx == 0:
-            #    histogram_test(feature0,post_fix = 'before')
-            feature0 = self.projector[scale_idx](feature0)
-            feature1 = self.projector[scale_idx](feature1)
-            #all_features.append(feature0)
 
-            #if scale_idx == 0:
-            #    histogram_test(feature0.detach(),post_fix = 'after')        
-            #bad_pixel_mask, nearest_neighbour_distances = self.get_mask(feature0,thr[scale_idx])
-            #distances.append(nearest_neighbour_distances)
-            #masks.append(bad_pixel_mask)
+            feature0 = self.projector(feature0)
+            feature1 = self.projector(feature1)
+      
+            bad_pixel_mask, nearest_neighbour_distances = self.get_mask(feature0,thr[scale_idx])
+            distances.append(nearest_neighbour_distances)
+            masks.append(bad_pixel_mask)
             
-            # if not scale_idx:
-            #     flat_features = feature0.flatten(2).contiguous()  # [B, C, H*W]
-                
-            #     #flat_mask = bad_pixel_mask.flatten(2).contiguous()
-            #     # masked_features = flat_features * flat_mask
-            #     # feature_sum = masked_features.sum(2,True) 
-            #     # mask_sum = flat_mask.sum(2,True)
-            #     # feature_mean = feature_sum / mask_sum
-            #     # flat_features = feature_mean.unsqueeze(2)
-
-            #     flat_features = flat_features.mean(dim=2, keepdim=True).unsqueeze(2)  # [B, C, 1, 1]
-            #     before_features.append(flat_features.squeeze())
-            #     pred_feature0 = self.predictor(flat_features)
-            #     after_features.append(pred_feature0.squeeze())
-
-            #bad_pixel_mask = bad_pixel_mask.detach()
+           
             upsample_factor = self.upsample_factor * (2 ** (self.num_scales - 1 - scale_idx))
 
             if scale_idx > 0:
@@ -300,14 +265,24 @@ class UniMatch(nn.Module):
             # add position to features
             feature0, feature1 = feature_add_position(feature0, feature1, attn_splits, self.feature_channels)
         
+            #breakpoint()
 
             # lets mix day-night features
+            batch_size = feature0.shape[0]//2
+            night_features0, day_features0 = feature0[:batch_size], feature0[batch_size:]
+            night_features1, day_features1 = feature1[:batch_size], feature1[batch_size:]
 
-        
+            night_features = torch.cat((night_features0, day_features1), dim=0) 
+            day_features =   torch.cat((day_features0, night_features1), dim=0)
 
+            night_features, day_features = self.d_n_transformer(night_features, day_features,
+                                                    attn_type='swin',
+                                                    attn_num_splits=attn_splits,
+                                                    )
+            feature0 = torch.cat((night_features[:batch_size], day_features[:batch_size]), dim=0)
+            feature1 = torch.cat((day_features[batch_size:], night_features[batch_size:]), dim=0)
 
-
-
+    
             # lets mix left right featurs
             feature0, feature1 = self.transformer(feature0, feature1,
                                                   attn_type=attn_type,
@@ -324,7 +299,7 @@ class UniMatch(nn.Module):
             else:
                 raise NotImplementedError
 
-            #flow_pred = flow_pred * bad_pixel_mask
+            flow_pred = flow_pred * bad_pixel_mask
 
 
             # flow or residual flow

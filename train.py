@@ -107,7 +107,8 @@ def train(epoch):
         for idx, disp in enumerate(predicted_disparities):
             disp = disp.unsqueeze(1)
             depth = (0.239983 * 100.) / (disp + 1e-6)
-            #depth = 100.0 / (disp + 1e-6)
+            #depth = 100.0 / (disp + 1e-6) # this was used in the submission of icra and found to have very sharp results when trained only with night
+            
             #disp_pad = torch.cat([disp, torch.zeros_like(disp)], dim=1)
             #warped_right_image = flow_warp(right_image, -1.*disp_pad)
             #

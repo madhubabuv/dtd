@@ -226,14 +226,13 @@ if __name__ == "__main__":
     args.use_full_res = False
     args.use_seq = False
     args.use_pose = False
-    args.batch_size = 8
+    args.batch_size = 4
     args.split = "train"
     args.learning_rate = 1e-4
 
     args.dataset = "robotcar"  # robotcar, ms2
 
     if args.dataset == "robotcar":
-        # from datasets.robotcar.dataloader import RobotCarDataset
         from datasets.robotcar.day_night_paried_dataset import (
             DayNightDataset as RobotCarDataset,
         )
@@ -269,9 +268,10 @@ if __name__ == "__main__":
     loss_fn = PhotometricLoss()
     optimizer = torch.optim.Adam(depth_net.parameters(), lr=args.learning_rate)
     checkpoint_dir = (
-        "/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_v2_fp_16"
+        "/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_with_attention_fp_16"
     )
-
+    checkpoint_path = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v1/depth_net_10.pth"
+    depth_net.load_state_dict(torch.load(checkpoint_path), strict=False)
     
     depth_net, optimizer = amp.initialize(depth_net, optimizer,
                                       opt_level='O1',
@@ -287,7 +287,6 @@ if __name__ == "__main__":
 
     # training loop
     args.num_epochs = 21
-    train(0)
     for epoch in range(args.num_epochs):
         try:
             train(epoch)

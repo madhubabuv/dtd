@@ -47,6 +47,7 @@ def test():
         reference_key = "frame{}".format(reference_idx)
         left_image = data[reference_key]["image"].cuda()
         right_image = data[reference_key]["stereo_pair"].cuda()
+        breakpoint()
         left_image = torch.nn.functional.interpolate(left_image, size=(args.image_height, args.image_width), mode='bilinear', align_corners=False)
         right_image = torch.nn.functional.interpolate(right_image, size=(args.image_height, args.image_width), mode='bilinear', align_corners=False)
 
@@ -124,7 +125,7 @@ if __name__ == "__main__":
     depth_net.model.eval()
 
     #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/icra_2024_reproduce/depth_net_19.pth'
-    checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_v2_fp_16/depth_net_10.pth'
+    checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_with_attention_fp_16/depth_net_10.pth'
     checkpoint = torch.load(checkpoint_path)
     depth_net.load_state_dict(checkpoint,strict=False)
 
