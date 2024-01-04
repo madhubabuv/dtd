@@ -15,15 +15,15 @@ def comparison_bar_plot(mono,stereo):
     bar_width = 1.5
     x = np.arange(0,55)[::5]
 
-    plt.bar(x, mono[:,1], bar_width)
-    plt.bar(x + bar_width, stereo[:,1], bar_width)
+    plt.bar(x, mono[:,2], bar_width)
+    plt.bar(x + bar_width, stereo[:,2], bar_width)
     plt.xlabel('Depth buckets (m)',fontsize=18)
     plt.grid()
     plt.tight_layout()
-    plt.ylabel('Sq. Rel Error',fontsize=18)
+    plt.ylabel('RMSE',fontsize=18)
     plt.xticks(fontsize = 18)
     plt.yticks(fontsize = 18)
-    plt.legend(['Ours','IGEV-Stereo'],fontsize=18)
+    plt.legend(['DDIM','Inv-gamma'],fontsize=18)
     
 
     # ax[0].bar(x , mono[1:,2], bar_width, label='DINO')
@@ -41,7 +41,7 @@ def comparison_bar_plot(mono,stereo):
     # ax[1].legend()
     # ax[1].grid()
     plt.tight_layout()
-    plt.savefig('ours_vs_igev.png')
+    plt.savefig('ddim_vs_inv_gamma.png')
 
 
 
@@ -58,9 +58,9 @@ def weighted_mean(data_path):
 
 # I am going to plot two main metrics: RMSE and delta1
 
-data2 = weighted_mean('bin_wise_metrics_MS2_sgm.npy')
-data1 = weighted_mean('bin_wise_metrics_MS2_ours.npy')
 
+data1 = weighted_mean('bin_wise_ddim_model.npy')
+data2 = weighted_mean('bin_wise_inv_gamma_model.npy')
 # data3 = weighted_mean('bin_wise_metrics_mono_stereo_monodepth2.npy')
 
 comparison_bar_plot(data1,data2)

@@ -1,107 +1,157 @@
-import torch
 import os
 import numpy as np
-from datasets.base.image import Image
+import torch
+import cv2
+import tqdm
 
 
-class RobotcarTest(torch.utils.data.Dataset):
+
+original_resolution = [1280, 768]
+
+def get_camera_matrix(scale_x=0.25, scale_y=0.25):
+
+    # scale is set to 2 because oxfor images are captured
+    # in raw format, so interms of space and speed, I never converted them to the
+    # original resolution, also, removed the car hood as it does not carry any useful info
+    # that is why the principal point is not at the center of the image
+
+    fx, fy, cx, cy = 983.044006, 983.044006, 643.646973, 493.378998
+    cy *= 4 / 5
+    fx = fx * scale_x
+    fy = fy * scale_y
+    cx = cx * scale_x
+    cy = cy * scale_y
+
+    return torch.from_numpy(np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])).float()
+
+class DayNightDataset(torch.utils.data.Dataset):
     def __init__(self, args):
+        self.args = args
+        self.data_path = args.data_path
+        #timestamps_path = '/home/madhu/code/feature-slam/git_repos/dtd/notebooks/unique_paired_night_day.txt'
+        timestamps_path = '/home/madhu/code/feature-slam/git_repos/2014-12-16-18-44-24_paried_day_train_1m.txt'
+        self.day_data_path = os.path.join(self.data_path, '2014-12-09-13-21-02/stereo')
+        self.night_data_path = os.path.join(self.data_path, '2014-12-16-18-44-24/stereo')
+        self.dddim_night_data_path = os.path.join(self.data_path, '2014-12-16-18-44-24_ddpm_192x320/stereo')
 
-        data_path = args.data_path
-        test_file_path = args.test_file_path
-        working_resolution = args.working_resolution
-        use_stereo = args.use_stereo
+        self.timestamps = np.loadtxt(timestamps_path, dtype = str, delimiter = ' ')
+        night_left_img_path = os.path.join(self.dddim_night_data_path, 'left_rgb/data')
+        available_imgs = os.listdir(night_left_img_path)
+        stamps = [stamp.split('.')[0] for stamp in available_imgs]
 
-        self.test_file_path = test_file_path
-        self.test_files = self.read_test_files(test_file_path)
+        data_dict = {}
+        for j in range(len(self.timestamps)):
+            row = self.timestamps[j]
+            data_dict[row[0]] =row[1]
 
-        self.timestamps = self.test_files[:, 0]
-
-        self.use_stereo = use_stereo
-        assert os.path.exists(data_path), "Data path does not exist: {}".format(
-            data_path
-        )
-        self.test_file_full_path = [
-            os.path.join(data_path, "left", test_file[0] + ".png")
-            for test_file in self.test_files
-        ]
-
-        # assertion
-        for test_file in self.test_file_full_path:
-            assert os.path.exists(test_file), "Image does not exist: {}".format(
-                test_file
-            )
-
-        self.working_resolution = working_resolution
-
-    def read_test_files(self, test_file_path):
-
-        data = np.loadtxt(test_file_path, dtype=str, delimiter=" ")
-
-        return data
+        self.timestamps = []
+        for stamp in stamps:
+            self.timestamps.append([stamp, data_dict[stamp]])
+         
 
     def __len__(self):
+        return len(self.timestamps)
 
-        return len(self.test_files)
+    def load_image(self, img_path):
+        assert os.path.exists(img_path), "Image path {} does not exist".format(img_path)
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        #img = cv2.resize(img, (self.args.image_width, self.args.image_height))
+        img = img / 255.0
+        img = torch.from_numpy(img).float()
+        img = img.permute(2, 0, 1)
+        return img
 
-    def read_image(self, image_path):
 
-        image = Image.read(image_path)
-
-        # I need to remove the car hood, Ain't I?
-        shape = image.shape
-        height, width = shape[0], shape[1]
-        crop_height = (4 * height) // 5
-        image = image[:crop_height, :, :]
-
-        # image = Image.resize(
-        #     image, self.working_resolution[0], self.working_resolution[1]
-        # )
-        # cv2 reads images in BGR format, so we convert it to RGB
-        image = Image.to_rgb(image)
-        image = Image.normalize(image)
-        image = torch.from_numpy(image).permute(2, 0, 1).float()
-
-        return image
 
     def __getitem__(self, idx):
 
-        image_path = self.test_file_full_path[idx]
-        image = self.read_image(image_path)
-        timestamp = self.timestamps[idx]
-        if self.use_stereo:
-            stereo_image_path = image_path.replace("left", "right")
-            stereo_image = self.read_image(stereo_image_path)
-            return {
-                "frame0": {
-                    "image": image,
-                    "stereo_pair": stereo_image,
-                    "timestamp": timestamp,
-                }
-            }
+        seq = self.timestamps[idx]
+    
+        night_stamp, day_stamp = seq[0], seq[1]
+        night_left_img_path = os.path.join(self.night_data_path, 'left_rgb/data', night_stamp + '.png')
+        ddim_night_left_img_path = os.path.join(self.dddim_night_data_path, 'left_rgb/data', night_stamp + '.png')
+        day_left_img_path = os.path.join(self.day_data_path, 'left_rgb/data', day_stamp + '.png')
+        
+        night_right_img_path = os.path.join(self.night_data_path, 'right_rgb/data', night_stamp + '.png')
+        ddim_night_right_img_path = os.path.join(self.dddim_night_data_path, 'right_rgb/data', night_stamp + '.png')
+        day_right_img_path = os.path.join(self.day_data_path, 'right_rgb/data', day_stamp + '.png')
 
-        return {"frame0": {"image": image, "timestamp": timestamp}}
+        assert os.path.exists(night_left_img_path), "Image path {} does not exist".format(night_left_img_path)
+        assert os.path.exists(day_left_img_path), "Image path {} does not exist".format(day_left_img_path)
+        assert os.path.exists(night_right_img_path), "Image path {} does not exist".format(night_right_img_path)
+        assert os.path.exists(day_right_img_path), "Image path {} does not exist".format(day_right_img_path)
+
+        
+        night_left_img = self.load_image(night_left_img_path)
+        ddim_night_left_img = self.load_image(ddim_night_left_img_path)
+        day_left_img = self.load_image(day_left_img_path)
+        
+        
+        night_right_img = self.load_image(night_right_img_path)
+        ddim_night_right_img = self.load_image(ddim_night_right_img_path)
+        day_right_img = self.load_image(day_right_img_path)
+        
+
+        outputs = {}
+        frame0 = {}
+        frame0['image'] = night_left_img
+        frame0['stereo_pair'] = night_right_img
+        frame0['ddim_image'] = ddim_night_left_img
+        frame0['ddim_stereo_pair'] = ddim_night_right_img
+        frame0['camera_matrix'] = get_camera_matrix()
+        frame0['timestamp'] = night_stamp
+
+        frame1 = {}
+        frame1['image'] = day_left_img
+        frame1['stereo_pair'] = day_right_img
+        frame1['camera_matrix'] = get_camera_matrix()
+
+        outputs['frame0'] = frame0
+        outputs['frame1'] = frame1
+        return outputs
 
 
 if __name__ == "__main__":
 
-    #from utils.options import get_test_args
-    args = get_test_args()
-    args.test_file_path = '/home/madhu/code/feature-slam/datasets/robotcar/2014-12-16-18-44-24_test.txt'
+    import argparse
+    parser = argparse.ArgumentParser(description='Minimal RobotCar dataloader')
+    args = parser.parse_args()
 
-    args.data_path = "/mnt/nas/madhu/data/robotcar/2014-12-16-18-44-24/test_split/"
+    args.split = 'train'
+    args.data_path = "/hdd1/madhu/data/robotcar"
 
-    dataset = RobotcarTest(args)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
+    dataset = DayNightDataset(args)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
 
-    for data in dataloader:
+    all_xyz = []
 
-        img0 = data['frame0']['image']
-        img1 = data['frame0']['stereo_pair']
+
+    for idx, data in tqdm.tqdm(enumerate(dataloader), total = len(dataloader)):
+
+        img0 = data["frame0"]["image"]
+        img1 = data["frame1"]["image"]
+
+        print(img0.shape)
+
 
         from matplotlib import pyplot as plt
 
-        plt.imsave('img0.png', img0[0].permute(1,2,0).numpy())
-        plt.imsave('img1.png', img1[0].permute(1,2,0).numpy())
+        plt.imsave("img0.png", img0[0].permute(1, 2, 0).numpy())
+        plt.imsave("img1.png", img1[0].permute(1, 2, 0).numpy())
 
         break
+
+        # print(img0.shape, img1.shape)
+
+        # pose0 = data['frame0']['pose']
+        # pose1 = data['frame1']['pose']
+
+        # xyz = pose0[:3,3]
+        # all_xyz.append(xyz)
+
+        # relative_pose = SE3_inverse(pose1) @ pose0
+
+        # print(relative_pose)
+
+        #break

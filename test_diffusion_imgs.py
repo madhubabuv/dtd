@@ -6,6 +6,8 @@ import cv2
 from models.depth_model import StereoDepthNet
 from matplotlib import pyplot as plt
 
+from git_repos.day_night_diffusion.uncond_image_generation.denoise_image import get_model,denoise
+
 
 def put_text(image,text):
 
@@ -45,18 +47,36 @@ def test():
     for idx, data in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
         reference_idx = 0
         reference_key = "frame{}".format(reference_idx)
+        #if data[reference_key]['timestamp'][0] != '1418756886587839':#5462989':
+        #    continue
         left_image = data[reference_key]["image"].cuda()
         right_image = data[reference_key]["stereo_pair"].cuda()
-
-
 
         pair_image = data[reference_key]['pair_image'].cuda()
         pair_stereo_pair = data[reference_key]['pair_stereo_pair'].cuda()
         
-
         
         left_image = torch.nn.functional.interpolate(left_image, size=(args.image_height, args.image_width), mode='bilinear', align_corners=False)
         right_image = torch.nn.functional.interpolate(right_image, size=(args.image_height, args.image_width), mode='bilinear', align_corners=False)
+
+        left_image = left_image**0.45
+        right_image = right_image**0.45
+
+
+        # night_images = torch.cat([left_image, right_image], dim = 0)
+        # denoised_night_images = denoise(night_images, diffusion_model, noise_scheduler)
+        # left_image, right_image = denoised_night_images[:1],denoised_night_images[1:]
+
+                        
+        timestamp = data[reference_key]["timestamp"][0]
+        # np_left_image = left_image[0].squeeze().permute(1,2,0).cpu().numpy()
+        # np_right_image = right_image[0].squeeze().permute(1,2,0).cpu().numpy()
+        # left_image_path = os.path.join(args.left_save_path,str(timestamp)+'.png')
+        # right_image_path = os.path.join(args.right_save_path, str(timestamp)+'.png')
+
+        # plt.imsave(left_image_path, np_left_image)
+        # plt.imsave(right_image_path, np_right_image)
+
 
         pair_image = torch.nn.functional.interpolate(pair_image, size=(args.image_height, args.image_width), mode='bilinear', align_corners=False)
         pair_stereo_pair = torch.nn.functional.interpolate(pair_stereo_pair, size=(args.image_height, args.image_width), mode='bilinear', align_corners=False)
@@ -84,18 +104,17 @@ def test():
         predictions.append(disp)
 
 
-                
-        # timestamp = data[reference_key]["timestamp"][0]
-        # left_image = left_image[0:1].squeeze().permute(1,2,0).cpu().numpy()
-        # left_image = put_text(left_image, str(timestamp))
 
-        # fig, ax = plt.subplots(1,2, figsize=(10,5))
+        # left_image = left_image[1:2].squeeze().permute(1,2,0).cpu().numpy()
+        # left_image = put_text(left_image, str(timestamp))
+        # #original_left = data[reference_key]["image"][0:1].squeeze().permute(1,2,0).numpy()
+        # fig, ax = plt.subplots(1,3, figsize=(15,5))
         # ax[0].imshow(left_image)
         # ax[1].imshow(disp.squeeze(), cmap='plasma')
-        # #ax[2].imshow(masks[0].squeeze().detach().cpu().numpy(), cmap='plasma')
+        # ax[2].imshow(masks[0][0:1].squeeze().detach().cpu().numpy(), cmap='plasma')
         # ax[0].axis('off')
         # ax[1].axis('off')
-        # #ax[2].axis('off')
+        # ax[2].axis('off')
         # plt.tight_layout()
         # plt.savefig('test.png')    
         
@@ -103,7 +122,7 @@ def test():
 
     #breakpoint()
     predictions = np.concatenate(predictions, axis=0)
-    save_path = os.path.join(save_dir, 'baseline_d_n_f16_warping.npy')
+    save_path = os.path.join(save_dir, 'baseline_d_n_f16_warping_with_inv_gamma_ddim_img_loss.npy')
     np.save(save_path, predictions)
     
 
@@ -128,12 +147,16 @@ if __name__ == "__main__":
     args.split = "train"
     #args.test_file_path = ("/home/madhu/code/feature-slam/datasets/robotcar/2014-12-16-18-44-24_test.txt")
     args.test_file_path = '/home/madhu/code/feature-slam/git_repos/2014-12-16-18-44-24_paried_day_test.txt'
-    args.data_path = '/mnt/nas/madhu/data/robotcar/2014-12-16-18-44-24/test_split/'
+    args.data_path = '/mnt/nas/madhu/data/robotcar/2014-12-16-18-44-24/test_split'
+    #args.save_path = '/mnt/nas/madhu/data/robotcar/2014-12-16-18-44-24/test_split_ddpm_192x320/'
+    #args.left_save_path = os.path.join(args.save_path,'left')
+    #args.right_save_path = os.path.join(args.save_path,'right')
+    #if not os.path.exists(args.left_save_path):os.makedirs(args.left_save_path)
+    #if not os.path.exists(args.right_save_path):os.makedirs(args.right_save_path)
     args.pair_data_path = '/mnt/nas/madhu/data/robotcar/2014-12-09-13-21-02/test_split/'
     save_dir = '/mnt/nas/madhu/data/predictions/chapter_4_cvpr/'
 
     args.learning_rate = 1e-4
-
     dataset = RobotcarTest(args)
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, shuffle=False
@@ -143,9 +166,17 @@ if __name__ == "__main__":
     depth_net.cuda()
     depth_net.model.eval()
 
+    diffusion_model, noise_scheduler = get_model()
+    print('Loaded the diffusion model and the noise_schedular')    
+
+
+
     #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/icra_2024_reproduce/depth_net_19.pth'
     #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16/depth_net_20.pth'
-    checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2/depth_net_15.pth'
+    #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2/depth_net_15.pth'
+    checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2_ddim_loss/depth_net_20.pth'
+    #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2_ddim/depth_net_11.pth'
+    #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/icra_2024_reproduce/depth_net_15.pth'
     checkpoint = torch.load(checkpoint_path)
     depth_net.load_state_dict(checkpoint,strict=True)
 

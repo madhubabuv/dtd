@@ -107,11 +107,11 @@ class UniMatch(nn.Module):
                                               nhead=num_head,
                                               ffn_dim_expansion=ffn_dim_expansion,
                                               )
-        self.d_n_transformer = FeatureTransformer(num_layers=num_transformer_layers,
-                                              d_model=feature_channels,
-                                              nhead=num_head,
-                                              ffn_dim_expansion=ffn_dim_expansion,
-                                              )
+        #self.d_n_transformer = FeatureTransformer(num_layers=num_transformer_layers,
+        #                                      d_model=feature_channels,
+        #                                      nhead=num_head,
+        #                                      ffn_dim_expansion=ffn_dim_expansion,
+        #                                      )
 
         # self.predictor = nn.Sequential(nn.Conv2d(output_dim, output_dim, 1),
         #                 nn.BatchNorm2d(output_dim),
@@ -228,6 +228,8 @@ class UniMatch(nn.Module):
         for scale_idx in range(self.num_scales):
             feature0, feature1 = feature0_list[scale_idx].detach(), feature1_list[scale_idx].detach()
 
+            #all_features.append(feature0)
+
             feature0 = self.projector(feature0)
             feature1 = self.projector(feature1)
       
@@ -263,26 +265,9 @@ class UniMatch(nn.Module):
             prop_radius = prop_radius_list[scale_idx]
 
             # add position to features
-            feature0, feature1 = feature_add_position(feature0, feature1, attn_splits, self.feature_channels)
+            #feature0, feature1 = feature_add_position(feature0, feature1, attn_splits, self.feature_channels)
         
-            #breakpoint()
 
-            # lets mix day-night features
-            batch_size = feature0.shape[0]//2
-            night_features0, day_features0 = feature0[:batch_size], feature0[batch_size:]
-            night_features1, day_features1 = feature1[:batch_size], feature1[batch_size:]
-
-            night_features = torch.cat((night_features0, day_features1), dim=0) 
-            day_features =   torch.cat((day_features0, night_features1), dim=0)
-
-            night_features, day_features = self.d_n_transformer(night_features, day_features,
-                                                    attn_type='swin',
-                                                    attn_num_splits=attn_splits,
-                                                    )
-            feature0 = torch.cat((night_features[:batch_size], day_features[:batch_size]), dim=0)
-            feature1 = torch.cat((day_features[batch_size:], night_features[batch_size:]), dim=0)
-
-    
             # lets mix left right featurs
             feature0, feature1 = self.transformer(feature0, feature1,
                                                   attn_type=attn_type,
@@ -290,6 +275,24 @@ class UniMatch(nn.Module):
                                                   )
 
 
+            #breakpoint()
+            # # lets mix day-night features
+            # batch_size = feature0.shape[0]//2
+            # night_features0, day_features0 = feature0[:batch_size], feature0[batch_size:]
+            # night_features1, day_features1 = feature1[:batch_size], feature1[batch_size:]
+
+            # night_features = torch.cat((night_features0, day_features1), dim=0) 
+            # day_features =   torch.cat((day_features0, night_features1), dim=0)
+
+            # night_features, day_features = self.transformer(night_features, day_features,
+            #                                         attn_type='swin',
+            #                                         attn_num_splits=attn_splits,
+            #                                         )
+            # feature0 = torch.cat((night_features[:batch_size], day_features[:batch_size]), dim=0)
+            # feature1 = torch.cat((day_features[batch_size:], night_features[batch_size:]), dim=0)
+
+
+            all_features.append(feature0)
 
                       
             if corr_radius == -1:  # global matching

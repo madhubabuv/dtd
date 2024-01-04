@@ -10,9 +10,7 @@ from losses.regularization_loss import get_disparity_smooth_loss
 from unimatch.unimatch.geometry import flow_warp
 import argparse
 from Neighbor2Neighbor.arch_unet import UNet
-#from models.optimal_transport import PartialOT as OT
 
-import ot
 
 
 def test():

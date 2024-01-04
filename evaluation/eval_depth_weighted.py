@@ -8,8 +8,8 @@ import pdb
 
 cv2.setNumThreads(0)  # This speeds up evaluation 5x on our unix systems (OpenCV 3.3.1)
 
-#ROBOTCAR_SCALE_FACTOR = (0.239983 * 983.044006)
-MS2_SCALE_FACTOR = (0.2991842 * 764.51385)
+ROBOTCAR_SCALE_FACTOR = (0.239983 * 983.044006) * 0.25
+#MS2_SCALE_FACTOR = (0.2991842 * 764.51385)
 #ROBOTCAR_SCALE_FACTOR = 0.23998*100.
 #MS2_SCALE_FACTOR = (0.2991842 * 100)
 
@@ -60,8 +60,8 @@ def evaluate(pred_disps, gt_depths):
         gt_height, gt_width = gt_depth.shape[:2]
         pred_disp = pred_disps[i]
         pred_disp = cv2.resize(pred_disp, (gt_width, gt_height))
-        #pred_depth = ROBOTCAR_SCALE_FACTOR / (pred_disp + 1e-6)
-        pred_depth = MS2_SCALE_FACTOR / (pred_disp + 1e-6)
+        pred_depth = ROBOTCAR_SCALE_FACTOR / (pred_disp + 1e-6)
+        #pred_depth = MS2_SCALE_FACTOR / (pred_disp + 1e-6)
         mask = np.logical_and(gt_depth > MIN_DEPTH, gt_depth < MAX_DEPTH)
 
         # mask = np.logical_and(gt_depth > MIN_DEPTH, gt_depth < MAX_DEPTH)
@@ -97,7 +97,7 @@ def evaluate(pred_disps, gt_depths):
 
     mean_errors = np.array(errors).mean(0)
     all_bin_wise_metrics = np.stack(all_bin_wise_metrics)
-    np.save("bin_wise_metrics_MS2_sgm.npy",all_bin_wise_metrics)
+    np.save("bin_wise_ddim_model.npy",all_bin_wise_metrics)
     return mean_errors
 
 if __name__ == "__main__":

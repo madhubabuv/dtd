@@ -61,14 +61,19 @@ if __name__ == "__main__":
 
     #timestamps_path = '/mnt/nas/madhu/robotcar/night/2014-12-16-18-44-24/files/2014-12-16-18-44-24_train_1m.txt'
     #timestamps_path = '/mnt/nas/madhu/awsgpu2/datasets/robotcar/2014-12-09-13-21-02/2014-12-09-13-21-02_train_1m.txt'
-    timestamps_path = '/home/madhu/code/feature-slam/git_repos/dtd/notebooks/unique_paired_night_day.txt'
+    #timestamps_path = '/home/madhu/code/feature-slam/git_repos/dtd/notebooks/unique_paired_night_day.txt'
+    #timestamps_path = '/home/madhu/code/feature-slam/git_repos/matching_night_day_test_split.txt'
+    timestamps_path = '/home/madhu/code/feature-slam/git_repos/2014-12-16-18-44-24_paried_day_test.txt'
     models_dir = '/mnt/nas/madhu/data/robotcar/models/'
     raw_image_dir = '/hdd1/madhu/data/robotcar/2014-12-09-13-21-02/stereo/right/'
-    save_image_dir = '/hdd1/madhu/data/robotcar/2014-12-09-13-21-02/stereo/left_rgb/data/'
+    save_image_dir = "/mnt/nas/madhu/data/robotcar/2014-12-09-13-21-02/test_split/right"
+    #save_image_dir = '/hdd1/madhu/data/robotcar/2014-12-09-13-21-02/stereo/left_rgb/data/'
+    #save_image_dir = '/hdd1/madhu/data/robotcar/2014-12-09-13-21-02/stereo/right_rgb/data/'
     camera_model = CameraModel(models_dir, raw_image_dir)
     
     data = np.loadtxt(timestamps_path, dtype = int)
     data = data[:,1]
+
 
     if not os.path.exists(save_image_dir):
         os.makedirs(save_image_dir)
@@ -76,11 +81,12 @@ if __name__ == "__main__":
     try:
         for timestamp in tqdm.tqdm(data, total = len(data)):
             save_image_path = os.path.join(save_image_dir, str(timestamp) + '.png')
-            if os.path.exists(save_image_path):
-                continue
+            #if os.path.exists(save_image_path):
+            #    continue
             filename = os.path.join(raw_image_dir, str(timestamp) + '.png')
             img = load_image(filename, camera_model)
             cropped_img = img[:768, :,:]
+            
             re_img = cv2.resize(cropped_img, (640, 384))
             re_img = re_img.astype(np.uint8)
             re_img = cv2.cvtColor(re_img, cv2.COLOR_RGB2BGR)

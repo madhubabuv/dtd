@@ -7,20 +7,30 @@ from sdk.camera_model import CameraModel
 import tqdm
 
 parser = argparse.ArgumentParser(description="Project LIDAR data into camera image")
-parser.add_argument("--models_dir", type=str, help="Directory containing camera models")
-parser.add_argument(
-    "--extrinsics_dir", type=str, help="Directory containing sensor extrinsics"
-)
-parser.add_argument("--image_dir", type=str, help="Directory containing images")
-parser.add_argument("--testfile_timestamps", type=str, help="test_images timestamps")
+# parser.add_argument("--models_dir", type=str, help="Directory containing camera models")
+# parser.add_argument(
+#     "--extrinsics_dir", type=str, help="Directory containing sensor extrinsics"
+# )
+# parser.add_argument("--image_dir", type=str, help="Directory containing images")
+# parser.add_argument("--testfile_timestamps", type=str, help="test_images timestamps")
 args = parser.parse_args()
+
+
 
 if __name__ == "__main__":
 
+    args.models_dir = '/home/madhu/code/feature-slam/git_repos/dtd/robotcar-dataset-sdk/models'
+    args.image_dir = '/hdd1/madhu/data/robotcar/depth_test_splits/2014-12-16-18-44-24/stereo/left'
+    args.testfile_timestamps = '/home/madhu/code/feature-slam/git_repos/dtd/datasets/robotcar/2014-12-16-18-44-24_test.txt'
+    args.extrinsics_dir = '/home/madhu/code/feature-slam/git_repos/dtd/robotcar-dataset-sdk/extrinsics'
+    
+    poses_file = '/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/gps/ins.csv'
+    laser_dir = '/mnt/nas/madhu/data/robotcar/2014-12-16-18-44-24/lms_front'
+
     model = CameraModel(args.models_dir, args.image_dir)
     extrinsics_path = os.path.join(args.extrinsics_dir, "stereo" + ".txt")
-    poses_file = os.path.join(args.image_dir, "gps/rtk.csv")
-    laser_dir = os.path.join(args.image_dir, "lms_front/")
+    #poses_file = os.path.join(args.image_dir, "gps/ins.csv")
+    #laser_dir = os.path.join(args.image_dir, "lms_front/")
 
     with open(extrinsics_path) as extrinsics_file:
         extrinsics = [float(x) for x in next(extrinsics_file).split(" ")]
@@ -86,4 +96,4 @@ if __name__ == "__main__":
 
     breakpoint()
     print("saving_depths")
-    np.save("/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/depth_evaluation/gt_depths.npy",depth_all)
+    np.save("/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/depth_evaluation/gt_depths_ins.npy",depth_all)

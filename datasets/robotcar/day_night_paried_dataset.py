@@ -28,7 +28,8 @@ class DayNightDataset(torch.utils.data.Dataset):
     def __init__(self, args):
         self.args = args
         self.data_path = args.data_path
-        timestamps_path = '/home/madhu/code/feature-slam/git_repos/dtd/notebooks/unique_paired_night_day.txt'
+        #timestamps_path = '/home/madhu/code/feature-slam/git_repos/dtd/notebooks/unique_paired_night_day.txt'
+        timestamps_path = '/home/madhu/code/feature-slam/git_repos/2014-12-16-18-44-24_paried_day_train_1m.txt'
         self.day_data_path = os.path.join(self.data_path, '2014-12-09-13-21-02/stereo')
         self.night_data_path = os.path.join(self.data_path, '2014-12-16-18-44-24/stereo')
         self.timestamps = np.loadtxt(timestamps_path, dtype = str, delimiter = ' ')

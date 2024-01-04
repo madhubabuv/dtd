@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 #depth_data = np.load(gt_depth_path, fix_imports=True, encoding='latin1',allow_pickle=True)["data"]
 
 gt_depth_data = '/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/depth_evaluation/gt_depths.npy'
+gt_depth_data = '/mnt/nas/madhu/awsgpu2/datasets/robotcar/eval/depth/gt_depths.npy'
 #gt_depth_data = '/hdd1/madhu/data/ms2/gt_test_depths_filtered.npy'
 
 depth_data = np.load(gt_depth_data,allow_pickle=True)
@@ -30,7 +31,7 @@ plt.ylabel('Number of points',fontsize = 18)
 plt.xticks(fontsize = 18)
 plt.yticks(fontsize = 18)
 plt.tight_layout()
-plt.savefig('MS2_num_of_points_gtdepth_hist.png')
+plt.savefig('Robotcar_ins_depth_dist.png')
 
 '''
 # create a zoomed-in plot

@@ -1,2 +1,7 @@
 **/*.pyc
 *.png
+sample_depths_0_10_night.npy
+unimatch/
+Neighbor2Neighbor/
+git_repos/dtd/robotcar-dataset-sdk
+md4all/
