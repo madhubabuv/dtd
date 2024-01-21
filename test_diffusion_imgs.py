@@ -47,8 +47,8 @@ def test():
     for idx, data in tqdm.tqdm(enumerate(dataloader), total=len(dataloader)):
         reference_idx = 0
         reference_key = "frame{}".format(reference_idx)
-        #if data[reference_key]['timestamp'][0] != '1418756886587839':#5462989':
-        #    continue
+        if data[reference_key]['timestamp'][0] != '1418756886587839':#5462989':
+            continue
         left_image = data[reference_key]["image"].cuda()
         right_image = data[reference_key]["stereo_pair"].cuda()
 
@@ -105,24 +105,24 @@ def test():
 
 
 
-        # left_image = left_image[1:2].squeeze().permute(1,2,0).cpu().numpy()
-        # left_image = put_text(left_image, str(timestamp))
-        # #original_left = data[reference_key]["image"][0:1].squeeze().permute(1,2,0).numpy()
-        # fig, ax = plt.subplots(1,3, figsize=(15,5))
-        # ax[0].imshow(left_image)
-        # ax[1].imshow(disp.squeeze(), cmap='plasma')
-        # ax[2].imshow(masks[0][0:1].squeeze().detach().cpu().numpy(), cmap='plasma')
-        # ax[0].axis('off')
-        # ax[1].axis('off')
-        # ax[2].axis('off')
-        # plt.tight_layout()
-        # plt.savefig('test.png')    
+        left_image = left_image[0:1].squeeze().permute(1,2,0).cpu().numpy()
+        left_image = put_text(left_image, str(timestamp))
+        #original_left = data[reference_key]["image"][0:1].squeeze().permute(1,2,0).numpy()
+        fig, ax = plt.subplots(1,3, figsize=(15,5))
+        ax[0].imshow(left_image)
+        ax[1].imshow(disp.squeeze(), cmap='plasma')
+        ax[2].imshow(masks[0][0:1].squeeze().detach().cpu().numpy(), cmap='plasma')
+        ax[0].axis('off')
+        ax[1].axis('off')
+        ax[2].axis('off')
+        plt.tight_layout()
+        plt.savefig('test.png')    
         
-        # breakpoint()
+        #breakpoint()
 
     #breakpoint()
     predictions = np.concatenate(predictions, axis=0)
-    save_path = os.path.join(save_dir, 'baseline_d_n_f16_warping_with_inv_gamma_ddim_img_loss.npy')
+    save_path = os.path.join(save_dir, 'baseline_d_n_same_transfer_fusion_fp_16_v2_with_koleo_ablation.npy')
     np.save(save_path, predictions)
     
 
@@ -174,7 +174,8 @@ if __name__ == "__main__":
     #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/icra_2024_reproduce/depth_net_19.pth'
     #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16/depth_net_20.pth'
     #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2/depth_net_15.pth'
-    checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2_ddim_loss/depth_net_20.pth'
+    #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2_with_koleo_smooth_reg_0.1/depth_net_20.pth'
+    checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2_with_koleo_ablation/depth_net_20.pth'
     #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2_ddim/depth_net_11.pth'
     #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/icra_2024_reproduce/depth_net_15.pth'
     checkpoint = torch.load(checkpoint_path)

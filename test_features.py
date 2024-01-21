@@ -48,6 +48,10 @@ def plot_features(night_image, night_feat, day_image, day_feat):
     ax[1,0].imshow(day_image)
     ax[1,1].imshow(day_feat)
     #ax[2].imshow(masks[0].squeeze().detach().cpu().numpy(), cmap='plasma')
+    ax[0,0].axis('off')
+    ax[0,1].axis('off')
+    ax[1,0].axis('off')
+    ax[1,1].axis('off')
     #ax[0].axis('off')
     #ax[1].axis('off')
     #ax[2].axis('off')
@@ -65,7 +69,7 @@ def test():
         reference_idx = 0
         reference_key = "frame{}".format(reference_idx)
 
-        if data[reference_key]['timestamp'][0] != '1418756885462989':
+        if data[reference_key]['timestamp'][0] != '1418756886587839':
             continue
 
 
@@ -83,10 +87,13 @@ def test():
         left_image = torch.nn.functional.interpolate(left_image, size=(args.image_height, args.image_width), mode='bilinear', align_corners=False)
         right_image = torch.nn.functional.interpolate(right_image, size=(args.image_height, args.image_width), mode='bilinear', align_corners=False)
 
+        left_image = left_image ** 0.45
+        right_image = right_image**0.45
+
         # reverse_gamma + denoising
-        night_images = torch.cat([left_image, right_image], dim = 0)
-        denoised_night_images = denoise(night_images, diffusion_model, noise_scheduler)
-        left_image, right_image = denoised_night_images[:1],denoised_night_images[1:]
+        #night_images = torch.cat([left_image, right_image], dim = 0)
+        #denoised_night_images = denoise(night_images, diffusion_model, noise_scheduler)
+        #left_image, right_image = denoised_night_images[:1],denoised_night_images[1:]
 
 
         pair_image = torch.nn.functional.interpolate(pair_image, size=(args.image_height, args.image_width), mode='bilinear', align_corners=False)
@@ -114,6 +121,7 @@ def test():
         # disp = disp.squeeze(1).detach().cpu().numpy()
         predictions.append(disp)
 
+        #breakpoint()
 
         feat = outputs['features']
         idx = 0#torch.randint(0,384,(1,)).item()

@@ -150,19 +150,34 @@ def train(epoch):
 
     depth_net.model.train()
     progress_bar = tqdm.tqdm(enumerate(dataloader), total=len(dataloader))
+    #for _,data in progress_bar: break
+    #for iter in tqdm.tqdm(range(1000), total = 1000):
     for iter, data in progress_bar:
         reference_idx = 0
         reference_key = "frame{}".format(reference_idx)
         left_image = data[reference_key]["image"].cuda()
         right_image = data[reference_key]["stereo_pair"].cuda()
 
-        #day_left_image = data["frame1"]["image"].cuda()
-        #day_right_image = data["frame1"]["stereo_pair"].cuda()
-        #left_image = torch.cat([left_image, day_left_image], dim=0)
-        #right_image = torch.cat([right_image, day_right_image], dim=0)
+        day_left_image = data["frame1"]["image"].cuda()
+        day_right_image = data["frame1"]["stereo_pair"].cuda()
+        left_image = torch.cat([left_image, day_left_image], dim=0)
+        right_image = torch.cat([right_image, day_right_image], dim=0)
 
+        #estimate depth
         outputs = depth_net(left_image, right_image, return_dict=True)
         predicted_disparities = outputs["flow_preds"]
+        nn_distances = outputs["nn_distance"]
+        mask = outputs["bad_pixel_mask"]
+        pose = get_stereo_pose(left_image.shape[0])
+
+        total_loss = 0
+
+        ############ koleo reg_loss ############
+        distance = nn_distances[-1]
+        distance_loss = -1.0 * ((1 - distance) ** 2) * torch.log(distance + 1e-6)
+        distance_loss = distance_loss.mean()
+        total_loss += distance_loss
+
 
         total_loss = 0
         #pose = get_stereo_pose(left_image.shape[0])
@@ -190,6 +205,14 @@ def train(epoch):
             loss = photo_loss.mean(2, True).mean(3, True).mean()
             total_loss += loss
             
+            # ############ Gradient Smoothing ###############
+            # if idx < 2:
+            #     weight = 1 / 8
+            # else:
+            #     weight = 1 / 4
+            # smoothloss = get_disparity_smooth_loss(disp, left_image)
+            # total_loss += smoothloss * 0.1 * weight
+            
 
         optimizer.zero_grad()
         with amp.scale_loss(total_loss, optimizer) as scaled_loss:
@@ -197,11 +220,11 @@ def train(epoch):
 
         #loss.backward()
         optimizer.step()
-        lr_scheduler.step()
+        #lr_scheduler.step()
 
         progress_bar.set_description(
-            "epoch: {}/{} training loss: {:.4f}  photo_loss: {:.4f}, lr: {:.4f}".format(
-                epoch, args.num_epochs, total_loss.item(), loss.item(),lr_scheduler.get_last_lr()[0]
+            "epoch: {}/{} training loss: {:.4f}  photo_loss: {:.4f}".format(
+                epoch, args.num_epochs, total_loss.item(), loss.item()
             )
         )
 
@@ -212,7 +235,7 @@ def train(epoch):
 
             viz(warped_right_image[0:1], disp[:, 0:1], "night_disp")
             viz_error(left_image[0:1], photo_loss[0:1], "night_photo")
-            #viz_mask(warped_right_image[0:1], mask[0][0:1], "night_mask")
+            viz_mask(warped_right_image[0:1], mask[0][0:1], "night_mask")
 
             # viz(
             #     warped_right_image[args.batch_size : args.batch_size + 1],
@@ -227,6 +250,13 @@ def train(epoch):
 
 
 if __name__ == "__main__":
+
+
+    seed = 1234
+    torch.random.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    np.random.seed(seed)
+    
 
     args = argparse.ArgumentParser()
     # args = get_test_args()
@@ -243,20 +273,20 @@ if __name__ == "__main__":
     args.use_full_res = False
     args.use_seq = False
     args.use_pose = False
-    args.batch_size = 16
+    args.batch_size = 4
     args.split = "train"
     args.learning_rate = 1e-4
 
     args.dataset = "robotcar"  # robotcar, ms2
 
     if args.dataset == "robotcar":
-        #from datasets.robotcar.day_night_paried_dataset import (
-        #    DayNightDataset as RobotCarDataset,
-        #)
+        from datasets.robotcar.day_night_paried_dataset import (
+           DayNightDataset as RobotCarDataset,
+        )
+        args.data_path = "/hdd1/madhu/data/robotcar"  # /2014-12-16-18-44-24/stereo/"
 
-        from datasets.robotcar.dataloader import RobotCarDataset
-        #args.data_path = "/hdd1/madhu/data/robotcar"  # /2014-12-16-18-44-24/stereo/"
-        args.data_path = '/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/stereo'
+        #from datasets.robotcar.dataloader import RobotCarDataset
+        #args.data_path = '/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/stereo'
         dataset = RobotCarDataset(args)
 
     elif args.dataset == "ms2":
@@ -287,10 +317,10 @@ if __name__ == "__main__":
     loss_fn = PhotometricLoss()
     optimizer = torch.optim.Adam(depth_net.parameters(), lr=args.learning_rate)
     checkpoint_dir = (
-        "/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/icra_baseine_with_new_warping_no_pos_encodings"
+        "/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2_with_koleo_ablation"
     )
-    #checkpoint_path = "/mnt/nas/madhu/data/checkpoints/chapter_3/dino_unimatch_v1/depth_net_10.pth"
-    #depth_net.load_state_dict(torch.load(checkpoint_path), strict=False)
+    checkpoint_path = "/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2/depth_net_15.pth"
+    depth_net.load_state_dict(torch.load(checkpoint_path), strict=True)
     
     depth_net, optimizer = amp.initialize(depth_net, optimizer,
                                       opt_level='O1',
@@ -300,12 +330,12 @@ if __name__ == "__main__":
 
 
     #Initialize the learning rate scheduler
-    lr_scheduler = get_scheduler(
-        'cosine',
-        optimizer=optimizer,
-        num_warmup_steps=500, 
-        num_training_steps=(len(dataloader) * 20),
-    )
+    # lr_scheduler = get_scheduler(
+    #     'cosine',
+    #     optimizer=optimizer,
+    #     num_warmup_steps=500, 
+    #     num_training_steps=(len(dataloader) * 20),
+    # )
 
 
     if not os.path.exists(checkpoint_dir):

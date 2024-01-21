@@ -49,6 +49,19 @@ def load_image(image_path, model=None):
     return img
 
 
+def read_and_save(timestamp):
+
+    save_image_path = os.path.join(save_image_dir, str(timestamp) + '.png')
+    if os.path.exists(save_image_path):
+         pass
+    else:
+        filename = os.path.join(raw_image_dir, str(timestamp) + '.png')
+        img = load_image(filename, camera_model)
+        cropped_img = img[:768, :,:]
+        re_img = cv2.resize(cropped_img, (640, 384))
+        re_img = re_img.astype(np.uint8)
+        re_img = cv2.cvtColor(re_img, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(save_image_path, re_img)
 
 if __name__ == "__main__": 
 
@@ -56,6 +69,7 @@ if __name__ == "__main__":
     import tqdm
     import os
     import cv2
+    from multiprocessing.pool import ThreadPool
 
 
 
@@ -63,35 +77,29 @@ if __name__ == "__main__":
     #timestamps_path = '/mnt/nas/madhu/awsgpu2/datasets/robotcar/2014-12-09-13-21-02/2014-12-09-13-21-02_train_1m.txt'
     #timestamps_path = '/home/madhu/code/feature-slam/git_repos/dtd/notebooks/unique_paired_night_day.txt'
     #timestamps_path = '/home/madhu/code/feature-slam/git_repos/matching_night_day_test_split.txt'
-    timestamps_path = '/home/madhu/code/feature-slam/git_repos/2014-12-16-18-44-24_paried_day_test.txt'
+    #timestamps_path = '/home/madhu/code/feature-slam/git_repos/temporal_dtd/pose_eval/timestamps.txt'
+    timestamps_path = '/mnt/nas/madhu/robotcar/night/2014-12-16-18-44-24/files/2014-12-16-18-44-24_pose_test.txt'
     models_dir = '/mnt/nas/madhu/data/robotcar/models/'
-    raw_image_dir = '/hdd1/madhu/data/robotcar/2014-12-09-13-21-02/stereo/right/'
-    save_image_dir = "/mnt/nas/madhu/data/robotcar/2014-12-09-13-21-02/test_split/right"
-    #save_image_dir = '/hdd1/madhu/data/robotcar/2014-12-09-13-21-02/stereo/left_rgb/data/'
-    #save_image_dir = '/hdd1/madhu/data/robotcar/2014-12-09-13-21-02/stereo/right_rgb/data/'
+    raw_image_dir = '/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/stereo/right/'
+    save_image_dir = '/hdd1/madhu/data/robotcar/2014-12-16-18-44-24/stereo/right_rgb/data/'
     camera_model = CameraModel(models_dir, raw_image_dir)
-    
     data = np.loadtxt(timestamps_path, dtype = int)
-    data = data[:,1]
+    #data = data[:,1]
+    data = np.unique(data)
 
 
     if not os.path.exists(save_image_dir):
         os.makedirs(save_image_dir)
 
     try:
-        for timestamp in tqdm.tqdm(data, total = len(data)):
-            save_image_path = os.path.join(save_image_dir, str(timestamp) + '.png')
-            #if os.path.exists(save_image_path):
-            #    continue
-            filename = os.path.join(raw_image_dir, str(timestamp) + '.png')
-            img = load_image(filename, camera_model)
-            cropped_img = img[:768, :,:]
+        with ThreadPool() as pool:
             
-            re_img = cv2.resize(cropped_img, (640, 384))
-            re_img = re_img.astype(np.uint8)
-            re_img = cv2.cvtColor(re_img, cv2.COLOR_RGB2BGR)
-            cv2.imwrite(save_image_path, re_img)
+            for _ in tqdm.tqdm(pool.imap_unordered(read_and_save, data), total=len(data)):
+                pass
 
+            
+            #for timestamp in tqdm.tqdm(data, total = len(data)):
+            #    read_and_save(timestamp)
         print('All images in train set are converted to RGB and saved in {}'.format(save_image_dir))
     except Exception as e:
         print(e)

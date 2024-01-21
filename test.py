@@ -85,25 +85,25 @@ def test():
 
 
                 
-        # timestamp = data[reference_key]["timestamp"][0]
-        # left_image = left_image[0:1].squeeze().permute(1,2,0).cpu().numpy()
-        # left_image = put_text(left_image, str(timestamp))
+        timestamp = data[reference_key]["timestamp"][0]
+        left_image = left_image[0:1].squeeze().permute(1,2,0).cpu().numpy()
+        left_image = put_text(left_image, str(timestamp))
 
-        # fig, ax = plt.subplots(1,2, figsize=(10,5))
-        # ax[0].imshow(left_image)
-        # ax[1].imshow(disp.squeeze(), cmap='plasma')
-        # #ax[2].imshow(masks[0].squeeze().detach().cpu().numpy(), cmap='plasma')
-        # ax[0].axis('off')
-        # ax[1].axis('off')
-        # #ax[2].axis('off')
-        # plt.tight_layout()
-        # plt.savefig('test.png')    
+        fig, ax = plt.subplots(1,2, figsize=(10,5))
+        ax[0].imshow(left_image)
+        ax[1].imshow(disp.squeeze(), cmap='plasma')
+        #ax[2].imshow(masks[0].squeeze().detach().cpu().numpy(), cmap='plasma')
+        ax[0].axis('off')
+        ax[1].axis('off')
+        #ax[2].axis('off')
+        plt.tight_layout()
+        plt.savefig('test.png')    
         
         # breakpoint()
 
     #breakpoint()
     predictions = np.concatenate(predictions, axis=0)
-    save_path = os.path.join(save_dir, 'baseline_d_n_f16_warping.npy')
+    save_path = os.path.join(save_dir, 'icra_baseine_with_new_warping_no_pos_encodings.npy')
     np.save(save_path, predictions)
     
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
     #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/icra_2024_reproduce/depth_net_19.pth'
     #checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16/depth_net_20.pth'
-    checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/d_n_same_transfer_fusion_fp_16_v2/depth_net_15.pth'
+    checkpoint_path = '/mnt/nas/madhu/data/checkpoints/chapter_4_cvpr/icra_baseine_with_new_warping_no_pos_encodings/depth_net_15.pth'
     checkpoint = torch.load(checkpoint_path)
     depth_net.load_state_dict(checkpoint,strict=True)
 
