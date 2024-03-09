@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from unimatch.unimatch.transformer import FeatureTransformer
-from unimatch.unimatch.matching import global_correlation_softmax_stereo, local_correlation_softmax_stereo
-from unimatch.unimatch.attention import SelfAttnPropagation
-from unimatch.unimatch.geometry import flow_warp as disp_warp
-from unimatch.unimatch.utils import feature_add_position, upsample_flow_with_mask
+from .unimatch.unimatch.transformer import FeatureTransformer
+from .unimatch.unimatch.matching import global_correlation_softmax_stereo, local_correlation_softmax_stereo
+from .unimatch.unimatch.attention import SelfAttnPropagation
+from .unimatch.unimatch.geometry import flow_warp as disp_warp
+from .unimatch.unimatch.utils import feature_add_position, upsample_flow_with_mask
 
 class DTD(nn.Module):
     def __init__(self,

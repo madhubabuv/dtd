@@ -6,3 +6,4 @@ datasets/robotcar/sdk/robotcar-dataset-sdk
 **/*.pyc
 predictions/
 datasets/robotcar/junk/
+checkpoints/

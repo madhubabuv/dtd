@@ -1,9 +1,9 @@
-Dusk Till Dawn: Self-supervised Nighttime Stereo Depth Estimation using Visual Foundation Models 
-
+Dusk Till Dawn: Self-supervised Nighttime Stereo Depth Estimation using Visual Foundation Models
+====================================
 This repository holds all the code and data for the paper:
 
 [**Dusk Till Dawn: Self-supervised Nighttime Stereo Depth Estimation using Visual Foundation Models**, ICRA 2024.]()\
-[Madhu Vankadari](), [Samuel Hodgson](), [Sangyun Shin](), [Kaichen Zhou](), [Andrew Markham](),[Niki Trigoni]()
+[Madhu Vankadari](Madhu), [Samuel Hodgson](Sam), [Sangyun Shin](Sangyun), [Kaichen Zhou](Kaichen), [Andrew Markham](Andrew),[Niki Trigoni](Niki)
 
 If you find this code useful, please consider citing:  
 ```text
@@ -86,8 +86,12 @@ Acknowledgements
 ---------
 This project would not have been possible without replying the awesome repo [Unimatch](unimatch_git). We thank the original others for their excellent work
 
-
-
+[Madhu]: https://www.cs.ox.ac.uk/people/madhu.vankadari/
+[Sam]: https://www.cs.ox.ac.uk/people/samuel.hodgson/
+[Sangyun]:https://www.cs.ox.ac.uk/people/sangyun.shin/
+[Kaichen]:https://www.cs.ox.ac.uk/people/kaichen.zhou/
+[Andrew]:https://www.cs.ox.ac.uk/people/Andrew.Markham/
+[Niki]:https://www.cs.ox.ac.uk/people/niki.trigoni/
 [robot_car_reg]:https://mrgdatashare.robots.ox.ac.uk/accounts/login/
 [wgsd]:https://arxiv.org/abs/2206.13850
 [dtd_checkpoint]:https://drive.google.com/file/d/1dgUKBf-UKpOZp_3681iS_v3hgBs4Ip9a/view?usp=drive_link
