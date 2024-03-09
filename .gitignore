@@ -6,8 +6,8 @@ datasets/robotcar/sdk/robotcar-dataset-sdk
 **/*.pyc
 predictions/
 datasets/robotcar/junk/
+dtd/evaluation/junk
 checkpoints/
 export_gt.py
 dtd_gt_fp16.npy
-dtd/evaluation/junk
 .gitignore
