@@ -1,9 +1,9 @@
-[submodule "models/unimatch"]
-	path = models/unimatch
-	url = https://github.com/autonomousvision/unimatch.git
 [submodule "datasets/robotcar/RobotCarDataset-Scraper"]
 	path = datasets/robotcar/RobotCarDataset-Scraper
 	url = https://github.com/mttgdd/RobotCarDataset-Scraper.git
 [submodule "datasets/robotcar/sdk/robotcar-dataset-sdk"]
 	path = datasets/robotcar/sdk/robotcar-dataset-sdk
 	url = https://github.com/ori-mrg/robotcar-dataset-sdk.git
+[submodule "models/unimatch"]
+	path = models/unimatch
+	url = https://github.com/autonomousvision/unimatch.git
