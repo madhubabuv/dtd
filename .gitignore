@@ -7,3 +7,7 @@ datasets/robotcar/sdk/robotcar-dataset-sdk
 predictions/
 datasets/robotcar/junk/
 checkpoints/
+export_gt.py
+dtd_gt_fp16.npy
+dtd/evaluation/junk
+.gitignore

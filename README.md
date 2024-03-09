@@ -66,10 +66,20 @@ Please convert images from the both left and right directories. This process goi
 
 Testing
 --------
-Please download the pretrained checkpoints from [GoogleDrive](dtd_checkpoint) on RobotCarDataset. If you want to test it on the robotcar dataset test split, use the follwoing
+Please download the pretrained checkpoints from [here](dtd_checkpoint) on RobotCarDataset. If you want to test it on the robotcar dataset test split, use the follwoing
 ```
 python test.py --test_file_path datasets/robotcar/files/2014-12-16-18-44-24_test.txt --checkpoint_path <downloaded checkpoint> --save_dir <whereever you want to save>
 ```
+
+Evaluation
+-----------
+We need to download the ground depths that are calculated using RTK data released along with the dataset using the robotcar-sdk from [here](dtd_gt).
+
+```
+python evaluation/eval_depth_weighted.py --gt_depths_path <ground-truth depth path> --pred_disp_path <prediction path>
+```
+
+If you see a small change in the results from the paper, that is mainly because of convertion of depths to `fp16` while sharing on google drive. 
 
 Training
 ---------
@@ -95,4 +105,7 @@ This project would not have been possible without replying the awesome repo [Uni
 [robot_car_reg]:https://mrgdatashare.robots.ox.ac.uk/accounts/login/
 [wgsd]:https://arxiv.org/abs/2206.13850
 [dtd_checkpoint]:https://drive.google.com/file/d/1dgUKBf-UKpOZp_3681iS_v3hgBs4Ip9a/view?usp=drive_link
+[dtd_predictions]:https://drive.google.com/file/d/1aQfNbn5VmrHjrp6cUwelz64N-M1UmH0s/view?usp=drive_link
+[dtd_gt]:https://drive.google.com/file/d/1nSV97qH-D7yI7AkD3B1pFfdt03UU3MoA/view?usp=drive_link
+
 [unimatch_git]:https://github.com/autonomousvision/unimatch

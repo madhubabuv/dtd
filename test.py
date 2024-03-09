@@ -49,7 +49,7 @@ def test():
             breakpoint()
 
     predictions = np.concatenate(predictions, axis=0)
-    save_path = os.path.join(args.save_dir, 'predictions_20.npy')
+    save_path = os.path.join(args.save_dir, 'dtd_predictions.npy')
     np.save(save_path, predictions)
     
 
