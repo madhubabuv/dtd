@@ -51,7 +51,7 @@ def interpolate_vo_poses(vo_path, pose_timestamps, origin_timestamp):
             xyzrpy = [float(v) for v in row[2:8]]
 
             #to_kitti#
-            #xyzrpy = [xyzrpy[1], xyzrpy[2], xyzrpy[0], xyzrpy[4], xyzrpy[5], xyzrpy[3]]
+            xyzrpy = [xyzrpy[1], xyzrpy[2], xyzrpy[0], xyzrpy[4], xyzrpy[5], xyzrpy[3]]
 
             rel_pose = build_se3_transform(xyzrpy)
             abs_pose = abs_poses[-1] * rel_pose
@@ -92,7 +92,7 @@ def interpolate_ins_poses(ins_path, pose_timestamps, origin_timestamp, use_rtk=F
             rpy = row[-3:] if not use_rtk else row[11:14]
             xyzrpy = [float(v) for v in utm] + [float(v) for v in rpy]
             if use_rtk: xyzrpy[-1] =  xyzrpy[-1] + (3. * np.pi / 2) # this is a fix for the rtk data
-            #xyzrpy = [xyzrpy[1], xyzrpy[2], xyzrpy[0], xyzrpy[4], xyzrpy[5], xyzrpy[3]]
+            xyzrpy = [xyzrpy[1], xyzrpy[2], xyzrpy[0], xyzrpy[4], xyzrpy[5], xyzrpy[3]]
             abs_pose = build_se3_transform(xyzrpy)
             abs_poses.append(abs_pose)
 

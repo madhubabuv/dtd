@@ -1,2 +1,8 @@
 **/*.pyc
 *.png
+datasets/sample_data/
+datasets/robotcar/RobotCarDataset-Scraper
+datasets/robotcar/sdk/robotcar-dataset-sdk
+**/*.pyc
+predictions/
+datasets/robotcar/junk/

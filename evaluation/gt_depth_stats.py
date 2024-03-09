@@ -33,22 +33,6 @@ plt.tight_layout()
 plt.savefig('MS2_num_of_points_gtdepth_hist.png')
 
 '''
-# create a zoomed-in plot
-axins = ax.inset_axes([0.3, 0.6, 0.3, 0.3]) # [x0, y0, width, height]
-ax.bar(hist_bins[1:-1], bins_data[1:], width = 0.5)
-axins.set_xlim(0, 40)
-axins.set_ylim(0, 1e7)
-
-# add a rectangle to indicate the zoomed-in area
-rect = plt.Rectangle((0.0, 0.0), 40, 1e7, linewidth=1, edgecolor='r', facecolor='none')
-ax.add_patch(rect)
-
-
-
-
-#pdb.set_trace()
-
-'''
 
 
 

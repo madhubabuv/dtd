@@ -1,5 +1,5 @@
 import torch
-from .masked_stereo import UniMatch
+from .masked_stereo import DTD
 from torchvision import transforms as T
 from .dino_v1 import ViTExtractor as DinoV1ExtractFeatures
 
@@ -7,20 +7,19 @@ IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
-def get_unimatch_config(args):
-    args.task = "stereo"
+def get_dtd_config(args):
     args.num_scales = 2
     args.feature_channels = 128
     args.upsample_factor = 4
     args.num_head = 1
     args.ffn_dim_expansion = 4
     args.num_transformer_layers = 6
-    args.reg_refine = False
     args.attn_type = "self_swin2d_cross_1d"
     args.attn_splits_list = [1, 8]
     args.corr_radius_list = [-1, 4]
     args.prop_radius_list = [-1, 1]
     args.num_reg_refine = 3
+    args.mask_thr = 0.2
 
     return args
 
@@ -37,33 +36,30 @@ def get_dino_config(args):
 class StereoDepthNet(torch.nn.Module):
     def __init__(self, args, reg_refine=False):
         super(StereoDepthNet, self).__init__()
-        args = get_unimatch_config(args)
+        args = get_dtd_config(args)
         args = get_dino_config(args)
         if reg_refine:
             args.reg_refine = reg_refine
             print("=> reg refine is set to: ", args.reg_refine)
 
-        unimatch_model = UniMatch(
+        dtd_model = DTD(
             feature_channels=args.feature_channels,
             num_scales=args.num_scales,
             upsample_factor=args.upsample_factor,
             num_head=args.num_head,
             ffn_dim_expansion=args.ffn_dim_expansion,
             num_transformer_layers=args.num_transformer_layers,
-            reg_refine=args.reg_refine,
-            task=args.task,
             input_dim = args.dino_input_dim,
+            mask_thr=args.mask_thr
         )
 
-        model = torch.nn.DataParallel(unimatch_model)
+        model = torch.nn.DataParallel(dtd_model)
         self.model = model.module
-
         self.args = args
         self.image_net_normalizer = T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
         self.dino = DinoV1ExtractFeatures(args.dino_model_name, args.dino_stride, device="cuda")
         self.dino.model.eval()
         self.model.extract_feature = self.extract_features_dino_v1
-
         self.feat = []
 
 
@@ -78,13 +74,12 @@ class StereoDepthNet(torch.nn.Module):
 
 
         with torch.no_grad():
-
-            desc0 = self.dino._extract_features(
-                image0, layers=self.args.dino_layers, facet="token"
-            )
-            desc1 = self.dino._extract_features(
-                image1, layers=self.args.dino_layers, facet="token"
-            )
+            desc0 = self.dino._extract_features(image0, 
+                                                layers=self.args.dino_layers, 
+                                                facet="token")
+            desc1 = self.dino._extract_features(image1, 
+                                                layers=self.args.dino_layers, 
+                                                facet="token")
 
             coarse_feat0 = desc0[-1][:, 1:, :].permute(0, 2, 1)
             coarse_feat1 = desc1[-1][:, 1:, :].permute(0, 2, 1)
@@ -93,27 +88,16 @@ class StereoDepthNet(torch.nn.Module):
             fine_feat1 = desc1[0][:, 1:, :].permute(0, 2, 1)
 
         batch_size = desc0[0].shape[0]
-        coarse_feat0 = coarse_feat0.view(
-            batch_size, -1, coarse_height, coarse_width
-        )
-        coarse_feat1 = coarse_feat1.contiguous().view(
-            batch_size, -1, coarse_height, coarse_width
-        )
+        coarse_feat0 = coarse_feat0.view(batch_size, -1, coarse_height, coarse_width)
+        coarse_feat1 = coarse_feat1.contiguous().view(batch_size, -1, coarse_height, coarse_width)
 
-        fine_feat0 = fine_feat0.contiguous().view(
-            batch_size, -1, fine_height, fine_width
-        )
-        fine_feat1 = fine_feat1.contiguous().view(
-            batch_size, -1, fine_height, fine_width
-        )
+        fine_feat0 = fine_feat0.contiguous().view(batch_size, -1, fine_height, fine_width)
+        fine_feat1 = fine_feat1.contiguous().view(batch_size, -1, fine_height, fine_width)
 
         fine_feat0 = torch.nn.functional.pad(fine_feat0, (0, 1, 0, 1))
         fine_feat1 = torch.nn.functional.pad(fine_feat1, (0, 1, 0, 1))
 
-        self.feat = (
-            [coarse_feat0, fine_feat0],
-            [coarse_feat1, fine_feat1],
-        ) 
+        self.feat = ([coarse_feat0, fine_feat0],[coarse_feat1, fine_feat1]) 
 
         return [coarse_feat0, fine_feat0], [coarse_feat1, fine_feat1]
 
@@ -131,10 +115,9 @@ class StereoDepthNet(torch.nn.Module):
             attn_splits_list=self.args.attn_splits_list,
             corr_radius_list=self.args.corr_radius_list,
             prop_radius_list=self.args.prop_radius_list,
-            task="stereo",
         )
 
-        pred_disp = outputs["flow_preds"]
+        pred_disp = outputs["pred_disparities"]
         if return_distance:
             distance = outputs["nn_distance"]
             if masks:
