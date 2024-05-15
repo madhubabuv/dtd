@@ -18,7 +18,7 @@ if you have any questions, please email madhu.vankadari@cs.ox.ac.uk
 #
 Usage Instructions
 ------------------
-We use serveral other repositories, so please use the following command that automatically downloads all the included submodules for easy use:
+We use several other repositories, so please use the following command that automatically downloads all the included submodules for easy use:
 ```
 git clone --recurse-submodules https://github.com/madhubabuv/dtd.git
 ```
@@ -57,7 +57,7 @@ This should create a folder structure like the following
         |- ins.csv
 ```
 
-Now the downloded dataset is in Bayer format and we should convert the images to RGB format. To do that,
+Now the downloaded dataset is in Bayer format and we should convert the images to RGB format. To do that,
 ```
 cd datasets/robotcar/sdk
 python convert_images.py --data_path <placeholder>
@@ -66,20 +66,20 @@ Please convert images from the both left and right directories. This process goi
 
 Testing
 --------
-Please download the pretrained checkpoints from [here][dtd_checkpoint] on RobotCarDataset. If you want to test it on the robotcar dataset test split, use the follwoing
+Please download the pretrained checkpoints from [here][dtd_checkpoint] on RobotCarDataset. If you want to test it on the robotcar dataset test split, use the following
 ```
 python test.py --test_file_path datasets/robotcar/files/2014-12-16-18-44-24_test.txt --checkpoint_path <downloaded checkpoint> --save_dir <whereever you want to save>
 ```
 
 Evaluation
 -----------
-We need to download the ground depths that are calculated using RTK data released along with the dataset using the robotcar-sdk from [here][dtd_gt].
+We need to download the ground depths that are calculated using RTK data released along with the dataset using the robotcar-SDK from [here][dtd_gt].
 
 ```
 python evaluation/eval_depth_weighted.py --gt_depths_path <ground-truth depth path> --pred_disp_path <prediction path>
 ```
 
-If you see a small change in the results from the paper, that is mainly because of convertion of depths to `fp16` while sharing on google drive. 
+If you see a small change in the results from the paper, that is mainly because of the conversion of depths to `fp16` while sharing on Google Drive. 
 
 Training
 ---------
@@ -88,13 +88,13 @@ We are going to use the splits proposed in [When the sun goes down][wgsd] for tr
 python train.py --data_path <place holder> --checkpoint_dir <place holder> --num_epochs 20 --learning_rate 0.0001
 ```
 
-Licence
+License
 --------
 This repository is released under the MIT Licence license as found in the LICENSE file.
 
-Acknowledgements
+Acknowledgments
 ---------
-This project would not have been possible without replying the awesome repo [Unimatch][unimatch_git]. We thank the original others for their excellent work
+This project would not have been possible without the awesome repo [Unimatch][unimatch_git]. We thank the original others for their excellent work
 
 [Madhu]: https://www.cs.ox.ac.uk/people/madhu.vankadari/
 [Sam]: https://www.cs.ox.ac.uk/people/samuel.hodgson/
